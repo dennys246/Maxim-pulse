@@ -1,0 +1,59 @@
+/*
+ * Maxim DesignSystem tokens — the single source of truth for color/space/type.
+ *
+ * The scene/bio pair is load-bearing: RunSurface/EventClient port the terminal
+ * MaximDisplay information architecture, where narrative/dialogue renders BRIGHT
+ * ("scene") and bio-subsystem activity renders DIMMED underneath ("bio").
+ * That contrast is part of the token vocabulary, not component-local CSS.
+ *
+ * Dark is the default theme (it's a console); light overrides via [data-theme].
+ */
+:root {
+  /* -- color: base surfaces -- */
+  --mx-bg: #0b0e14;
+  --mx-surface: #121826;
+  --mx-border: #232b3d;
+
+  /* -- color: the MaximDisplay IA pair (scene bright / bio dim) -- */
+  --mx-surface-scene: #182031;
+  --mx-text-scene: #e8edf7;
+  --mx-surface-bio: #0e131e;
+  --mx-text-bio: #6b7691;
+
+  /* -- color: general text -- */
+  --mx-text: #c7cfdf;
+  --mx-text-muted: #8a94ab;
+
+  /* -- color: accent + status -- */
+  --mx-accent: #5aa9ff;
+  --mx-ok: #3ecf8e;
+  --mx-warn: #f0b429;
+  --mx-err: #f06449;
+
+  /* -- space / radius / type -- */
+  --mx-space-1: 0.25rem;
+  --mx-space-2: 0.5rem;
+  --mx-space-3: 0.75rem;
+  --mx-space-4: 1rem;
+  --mx-space-6: 1.5rem;
+  --mx-space-8: 2rem;
+  --mx-radius: 0.5rem;
+  --mx-radius-sm: 0.25rem;
+  --mx-font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --mx-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-theme='light'] {
+  --mx-bg: #f7f9fc;
+  --mx-surface: #ffffff;
+  --mx-border: #dde3ee;
+
+  --mx-surface-scene: #ffffff;
+  --mx-text-scene: #10141d;
+  --mx-surface-bio: #eef1f7;
+  --mx-text-bio: #7a8298;
+
+  --mx-text: #2a3245;
+  --mx-text-muted: #667089;
+}

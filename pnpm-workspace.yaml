@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - apps/console
+  - apps/reachy/ui
+
+# pnpm 10 blocks postinstall scripts by default; esbuild's is its binary sanity check.
+onlyBuiltDependencies:
+  - esbuild

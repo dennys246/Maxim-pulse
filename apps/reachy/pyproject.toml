@@ -1,0 +1,22 @@
+# Reachy target — the thin Python ReachyMiniApp bootstrap (Layer 3).
+#
+# Phase 0: deliberately NO pymaxim / reachy-mini dependencies — the pins
+# (`reachy-mini[gstreamer]>=1.8.3,<2.0`, an explicit pymaxim version) land with
+# the Phase-2 bootstrap so the scaffold installs anywhere, including CI.
+# This target versions on Pollen's SDK cadence (CLAUDE.md § Versioning).
+[project]
+name = "maxim-reachy-app"
+version = "0.0.1"
+description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

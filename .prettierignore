@@ -1,0 +1,8 @@
+dist/
+node_modules/
+coverage/
+pnpm-lock.yaml
+apps/reachy/maxim_reachy_app/
+apps/reachy/tests/
+docs/
+LICENSE
