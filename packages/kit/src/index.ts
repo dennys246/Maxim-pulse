@@ -6,4 +6,5 @@
 export { ThemeProvider, useTheme, type Theme } from './design/ThemeProvider'
 export { PageShell, Panel, Stack, Row } from './design/primitives'
 export { StatusChip, type StatusChipProps } from './components/StatusChip'
+export { ConnectionTest, type ConnectionTestProps } from './components/ConnectionTest'
 export * from './facade'
