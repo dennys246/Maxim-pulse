@@ -1,4 +1,13 @@
-import { ConnectionTest, ModelPicker, PageShell, Panel, Row, Stack, StatusChip } from '@maxim/kit'
+import {
+  ConnectionTest,
+  ModelPicker,
+  PageShell,
+  Panel,
+  Row,
+  SetupWizard,
+  Stack,
+  StatusChip,
+} from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
 
 // Heavy viz is console-only and lazy-loaded, so even the console's initial
@@ -11,6 +20,7 @@ export default function App() {
   const [showGraph, setShowGraph] = useState(false)
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
   const [model, setModel] = useState<string | undefined>()
+  const [showSetup, setShowSetup] = useState(false)
 
   return (
     <PageShell title="Maxim Console">
@@ -43,6 +53,19 @@ export default function App() {
             </p>
             <ModelPicker value={model} onChange={(m) => setModel(m.name)} />
           </Stack>
+        </Panel>
+        <Panel>
+          <button
+            className="rounded-panel border border-edge bg-surface px-3 py-1 text-sm text-accent"
+            onClick={() => setShowSetup((v) => !v)}
+          >
+            {showSetup ? 'Hide setup' : 'Run setup'}
+          </button>
+          {showSetup && (
+            <div className="mt-3">
+              <SetupWizard />
+            </div>
+          )}
         </Panel>
         <Panel>
           <button
