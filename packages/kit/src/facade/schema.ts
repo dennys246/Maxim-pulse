@@ -242,8 +242,8 @@ export interface components {
         };
         /** ProbeRequest */
         ProbeRequest: {
-            /** Api Key Ref */
-            api_key_ref?: string | null;
+            /** Api Key */
+            api_key?: string | null;
             /** Model */
             model?: string | null;
             /** Url */
@@ -257,11 +257,13 @@ export interface components {
             latency_ms?: number | null;
             /** Message */
             message: string;
+            /** Outcome */
+            outcome: string;
             /**
              * Status
              * @enum {string}
              */
-            status: "ok" | "auth_failed" | "unreachable" | "model_missing" | "error";
+            status: "ok" | "warn" | "fail";
         };
         /** RecallResponse */
         RecallResponse: {
