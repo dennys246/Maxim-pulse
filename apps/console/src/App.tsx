@@ -1,4 +1,4 @@
-import { PageShell, Panel, Row, Stack, StatusChip } from '@maxim/kit'
+import { ConnectionTest, PageShell, Panel, Row, Stack, StatusChip } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
 
 // Heavy viz is console-only and lazy-loaded, so even the console's initial
@@ -9,6 +9,7 @@ const PlaceholderFlowPanel = lazy(() =>
 
 export default function App() {
   const [showGraph, setShowGraph] = useState(false)
+  const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
 
   return (
     <PageShell title="Maxim Console">
@@ -20,6 +21,20 @@ export default function App() {
           Phase-0 scaffold. Kit components land in Phase 2; console-only panels in Phase 3.
         </Panel>
         <Panel variant="bio">bio-subsystem activity renders dimmed here (MaximDisplay IA).</Panel>
+        <Panel>
+          <Stack className="gap-2">
+            <label className="text-sm text-fg-muted" htmlFor="leader-url">
+              Leader URL (PROBE seam demo — live against maxim serve)
+            </label>
+            <input
+              id="leader-url"
+              className="w-72 rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
+              value={leaderUrl}
+              onChange={(e) => setLeaderUrl(e.target.value)}
+            />
+            <ConnectionTest request={{ url: leaderUrl }} />
+          </Stack>
+        </Panel>
         <Panel>
           <button
             className="rounded-panel border border-edge bg-surface px-3 py-1 text-sm text-accent"
