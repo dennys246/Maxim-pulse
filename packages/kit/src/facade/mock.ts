@@ -40,7 +40,7 @@ export class MockFacade implements FacadeClient {
     story_memories: [],
     preferences: [],
   }
-  probeResult: ProbeResult = { status: 'ok', message: 'mock probe ok' }
+  probeResult: ProbeResult = { status: 'ok', outcome: 'ok', message: 'mock probe ok' }
   requests: Array<{ endpoint: string; body: unknown }> = []
 
   async listModels(): Promise<ModelsResponse> {
@@ -85,5 +85,6 @@ export class MockFacade implements FacadeClient {
   /** Test helper: push an event into the stream as the /ws bridge would. */
   emit(event: ConsoleEvent): void {
     this.handlers.get(event.kind)?.forEach((handler) => handler(event))
+    this.handlers.get('*')?.forEach((handler) => handler(event))
   }
 }

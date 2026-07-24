@@ -50,6 +50,6 @@ export interface FacadeClient {
   recall(): Promise<RecallResponse>
   /** POST /api/run */
   run(request: RunRequest): Promise<RunAccepted>
-  /** Subscribe to /ws events by kind; returns an unsubscribe function. */
+  /** Subscribe to /ws events by kind ('*' = every event); returns an unsubscribe function. */
   on(kind: string, handler: (event: ConsoleEvent) => void): () => void
 }
