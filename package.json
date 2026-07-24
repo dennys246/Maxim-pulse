@@ -2,6 +2,11 @@
   "name": "maxim-pulse",
   "private": true,
   "type": "module",
+  "homepage": "https://pymaxim.bio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dennys246/maxim-pulse.git"
+  },
   "packageManager": "pnpm@10.12.1",
   "engines": {
     "node": ">=22"
