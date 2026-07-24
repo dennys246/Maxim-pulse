@@ -16,6 +16,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The facade contract: generated schema.ts must match the committed
+      # openapi.json snapshot (mirrors pymaxim's src/maxim/console/openapi.json).
+      - run: pnpm --filter @maxim/kit gen:facade:check
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

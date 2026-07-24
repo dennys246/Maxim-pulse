@@ -12,7 +12,9 @@
     "./design/tailwind.css": "./src/design/tailwind.css"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:facade": "openapi-typescript openapi.json -o src/facade/schema.ts",
+    "gen:facade:check": "openapi-typescript openapi.json -o node_modules/.schema-check.ts && diff -u src/facade/schema.ts node_modules/.schema-check.ts || (echo 'schema.ts is stale — run pnpm gen:facade' && exit 1)"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.8.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "~5.8.3",

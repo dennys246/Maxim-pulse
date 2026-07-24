@@ -10,6 +10,17 @@ test('renders the label', () => {
 test('MockFacade serves diagnose offline (the pattern Phase-2 components bind through)', async () => {
   const facade = new MockFacade()
   const report = await facade.diagnose()
-  expect(report.placement).toBe('mesh-lan')
-  expect(report.healthy).toBe(true)
+  expect(report.platform).toBe('mock')
+  expect(report.sections?.[0]?.status).toBe('ok')
+})
+
+test('MockFacade event stream delivers ConsoleEvent envelopes by kind', () => {
+  const facade = new MockFacade()
+  const seen: string[] = []
+  const unsubscribe = facade.on('heartbeat', (event) => seen.push(event.kind))
+  facade.emit({ kind: 'heartbeat', ts: 1 })
+  facade.emit({ kind: 'other', ts: 2 })
+  unsubscribe()
+  facade.emit({ kind: 'heartbeat', ts: 3 })
+  expect(seen).toEqual(['heartbeat'])
 })
