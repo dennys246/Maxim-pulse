@@ -1,10 +1,20 @@
 export type {
-  DiagnosticReport,
+  CloudSetupRequest,
+  ConsoleEvent,
+  DiagnoseResponse,
+  DiagnoseSection,
   FacadeClient,
-  MaximEvent,
+  MeshSetupRequest,
   ModelInfo,
+  ModelsResponse,
+  Preference,
+  ProbeRequest,
   ProbeResult,
-  RecallSnapshot,
-  SetupWrites,
+  RecallResponse,
+  RunAccepted,
+  RunRequest,
+  SetupResult,
+  StoryMemory,
 } from './types'
+export type { components, paths } from './schema'
 export { MockFacade } from './mock'

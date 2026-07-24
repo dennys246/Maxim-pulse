@@ -1,5 +1,7 @@
 dist/
 node_modules/
+# generated from openapi.json — byte-for-byte openapi-typescript output
+packages/kit/src/facade/schema.ts
 coverage/
 pnpm-lock.yaml
 apps/reachy/maxim_reachy_app/

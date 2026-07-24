@@ -1,63 +1,89 @@
 import type {
-  DiagnosticReport,
+  CloudSetupRequest,
+  ConsoleEvent,
+  DiagnoseResponse,
   FacadeClient,
-  MaximEvent,
-  ModelInfo,
+  MeshSetupRequest,
+  ModelsResponse,
+  ProbeRequest,
   ProbeResult,
-  RecallSnapshot,
+  RecallResponse,
+  RunAccepted,
+  RunRequest,
+  SetupResult,
 } from './types'
 
 /**
  * MockFacade — the offline test double behind every kit/component test.
- * No test spins up a real robot, a real LLM, or a live `maxim serve` (CLAUDE.md);
- * components render against this instead.
+ * No test spins up a real robot, a real LLM, or a live `maxim serve`
+ * (CLAUDE.md); components render against this instead. All shapes come from
+ * the generated contract, so a pymaxim schema change breaks this loudly at
+ * typecheck time.
  */
 export class MockFacade implements FacadeClient {
-  private handlers = new Map<string, Set<(event: MaximEvent) => void>>()
+  private handlers = new Map<string, Set<(event: ConsoleEvent) => void>>()
 
-  diagnostic: DiagnosticReport = { placement: 'mesh-lan', healthy: true, spendMonthUsd: 0 }
-  recallSnapshot: RecallSnapshot = {
+  models: ModelsResponse = {
+    groups: {
+      curated: [
+        { name: 'mock-large', backend: 'mock', cloud: false, downloaded: true, ready: true },
+      ],
+    },
+  }
+  diagnostic: DiagnoseResponse = {
+    platform: 'mock',
+    sections: [{ name: 'placement', status: 'ok', detail: 'thinking on mesh (mock)' }],
+  }
+  recallSnapshot: RecallResponse = {
     name: null,
-    playerModel: [],
-    storyMemories: [],
+    player_model: [],
+    story_memories: [],
     preferences: [],
   }
-  models: ModelInfo[] = [{ id: 'mock-large', provider: 'mock', curated: true }]
-  writes: Array<Record<string, unknown>> = []
+  probeResult: ProbeResult = { status: 'ok', message: 'mock probe ok' }
+  requests: Array<{ endpoint: string; body: unknown }> = []
 
-  async probe(target: 'mesh' | 'cloud'): Promise<ProbeResult> {
-    return { ok: true, target }
-  }
-
-  async recall(): Promise<RecallSnapshot> {
-    return this.recallSnapshot
-  }
-
-  async listModels(): Promise<ModelInfo[]> {
+  async listModels(): Promise<ModelsResponse> {
     return this.models
   }
 
-  async diagnose(): Promise<DiagnosticReport> {
+  async diagnose(): Promise<DiagnoseResponse> {
     return this.diagnostic
   }
 
-  async writeMeshPlacement(leaderUrl: string, accessKeyRef: string): Promise<void> {
-    this.writes.push({ kind: 'mesh', leaderUrl, accessKeyRef })
+  async probe(request: ProbeRequest): Promise<ProbeResult> {
+    this.requests.push({ endpoint: '/api/probe', body: request })
+    return this.probeResult
   }
 
-  async writeCloudProfile(provider: string, model: string, monthlyCapUsd: number): Promise<void> {
-    this.writes.push({ kind: 'cloud', provider, model, monthlyCapUsd })
+  async setupMesh(request: MeshSetupRequest): Promise<SetupResult> {
+    this.requests.push({ endpoint: '/api/setup/mesh', body: request })
+    return { ok: true, placement: 'mesh', detail: 'mock mesh placement written' }
   }
 
-  on(type: string, handler: (event: MaximEvent) => void): () => void {
-    const set = this.handlers.get(type) ?? new Set()
+  async setupCloud(request: CloudSetupRequest): Promise<SetupResult> {
+    this.requests.push({ endpoint: '/api/setup/cloud', body: request })
+    return { ok: true, placement: 'cloud', detail: 'mock cloud profile written' }
+  }
+
+  async recall(): Promise<RecallResponse> {
+    return this.recallSnapshot
+  }
+
+  async run(request: RunRequest): Promise<RunAccepted> {
+    this.requests.push({ endpoint: '/api/run', body: request })
+    return { session_id: 'mock-session', mode: request.mode, status: 'started' }
+  }
+
+  on(kind: string, handler: (event: ConsoleEvent) => void): () => void {
+    const set = this.handlers.get(kind) ?? new Set()
     set.add(handler)
-    this.handlers.set(type, set)
+    this.handlers.set(kind, set)
     return () => set.delete(handler)
   }
 
-  /** Test helper: push an event into the stream as `maxim serve` would. */
-  emit(event: MaximEvent): void {
-    this.handlers.get(event.type)?.forEach((handler) => handler(event))
+  /** Test helper: push an event into the stream as the /ws bridge would. */
+  emit(event: ConsoleEvent): void {
+    this.handlers.get(event.kind)?.forEach((handler) => handler(event))
   }
 }
