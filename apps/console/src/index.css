@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@import '@maxim/kit/design/tokens.css';
+@import '@maxim/kit/design/tailwind.css';
+
+/* Tailwind v4 auto-detects app sources; the kit is a workspace package, so add it. */
+@source '../../../packages/kit/src';

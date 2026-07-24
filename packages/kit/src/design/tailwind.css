@@ -1,0 +1,30 @@
+/*
+ * Tailwind v4 theme mapping — exposes the DesignSystem tokens as Tailwind
+ * utilities (bg-scene, text-bio, border-edge, …). `inline` keeps the emitted
+ * utilities referencing the CSS variables, so [data-theme] switching works.
+ *
+ * Apps import this AFTER `@import 'tailwindcss'` and tokens.css.
+ */
+@theme inline {
+  --color-bg: var(--mx-bg);
+  --color-surface: var(--mx-surface);
+  --color-edge: var(--mx-border);
+
+  --color-scene: var(--mx-surface-scene);
+  --color-scene-fg: var(--mx-text-scene);
+  --color-bio: var(--mx-surface-bio);
+  --color-bio-fg: var(--mx-text-bio);
+
+  --color-fg: var(--mx-text);
+  --color-fg-muted: var(--mx-text-muted);
+
+  --color-accent: var(--mx-accent);
+  --color-ok: var(--mx-ok);
+  --color-warn: var(--mx-warn);
+  --color-err: var(--mx-err);
+
+  --font-sans: var(--mx-font-sans);
+  --font-mono: var(--mx-font-mono);
+
+  --radius-panel: var(--mx-radius);
+}

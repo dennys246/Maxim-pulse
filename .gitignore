@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / frontend (maxim-pulse monorepo)
+node_modules/
+*.tsbuildinfo
+.vite/
+.eslintcache

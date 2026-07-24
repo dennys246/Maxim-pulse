@@ -1,0 +1,9 @@
+/**
+ * @maxim/kit — the LEAN entry. This is the ONLY kit entry the Reachy on-device
+ * bundle may import. Heavy dashboard viz lives behind the separate `@maxim/kit/viz`
+ * subpath export and must never be re-exported here (AGENTS.md § code-split).
+ */
+export { ThemeProvider, useTheme, type Theme } from './design/ThemeProvider'
+export { PageShell, Panel, Stack, Row } from './design/primitives'
+export { StatusChip, type StatusChipProps } from './components/StatusChip'
+export * from './facade'
