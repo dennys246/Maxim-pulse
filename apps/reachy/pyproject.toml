@@ -11,6 +11,13 @@ description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-d
 requires-python = ">=3.10"
 dependencies = []
 
+[project.urls]
+Homepage = "https://pymaxim.bio"
+# docs.pymaxim.bio is the docs home once live; the HF Space listing and the
+# privacy-posture blurb (Phase 2) must link it (what leaves the robot, what
+# lands in ~/.maxim/, mesh-vs-cloud data flow).
+Documentation = "https://docs.pymaxim.bio"
+
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
