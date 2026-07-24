@@ -1,4 +1,4 @@
-import { ConnectionTest, PageShell, Panel, Row, Stack, StatusChip } from '@maxim/kit'
+import { ConnectionTest, ModelPicker, PageShell, Panel, Row, Stack, StatusChip } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
 
 // Heavy viz is console-only and lazy-loaded, so even the console's initial
@@ -10,6 +10,7 @@ const PlaceholderFlowPanel = lazy(() =>
 export default function App() {
   const [showGraph, setShowGraph] = useState(false)
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
+  const [model, setModel] = useState<string | undefined>()
 
   return (
     <PageShell title="Maxim Console">
@@ -33,6 +34,14 @@ export default function App() {
               onChange={(e) => setLeaderUrl(e.target.value)}
             />
             <ConnectionTest request={{ url: leaderUrl }} />
+          </Stack>
+        </Panel>
+        <Panel>
+          <Stack className="gap-2">
+            <p className="text-sm text-fg-muted">
+              Model profiles (live from /api/models){model != null && ` — selected: ${model}`}
+            </p>
+            <ModelPicker value={model} onChange={(m) => setModel(m.name)} />
           </Stack>
         </Panel>
         <Panel>
