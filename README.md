@@ -10,8 +10,10 @@ build targets over a shared UI kit, both thin presentation over
   Space), running on-device on a Reachy Mini. Flagship experience: **Adventure**.
 
 Project home: **[pymaxim.bio](https://pymaxim.bio)** · Docs:
-**docs.pymaxim.bio** (coming online) · A hosted console is a non-goal for now
-(`pulse.pymaxim.bio` is reserved if that ever changes — the console is localhost-only).
+**[docs.pymaxim.bio](https://docs.pymaxim.bio)** (start with
+[getting started](https://docs.pymaxim.bio/getting-started/)) · A hosted console is a
+non-goal for now (`pulse.pymaxim.bio` is reserved if that ever changes — the console is
+localhost-only).
 
 ## Layout
 

@@ -13,9 +13,9 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://pymaxim.bio"
-# docs.pymaxim.bio is the docs home once live; the HF Space listing and the
-# privacy-posture blurb (Phase 2) must link it (what leaves the robot, what
-# lands in ~/.maxim/, mesh-vs-cloud data flow).
+# The HF Space listing and the privacy-posture blurb (Phase 2) must link the
+# docs site (what leaves the robot, what lands in ~/.maxim/, mesh-vs-cloud
+# data flow).
 Documentation = "https://docs.pymaxim.bio"
 
 [project.optional-dependencies]
