@@ -25,13 +25,20 @@ export class MockFacade implements FacadeClient {
 
   models: ModelsResponse = {
     groups: {
-      curated: [
-        { name: 'mock-large', backend: 'mock', cloud: false, downloaded: true, ready: true },
+      local: [
+        {
+          name: 'mock-large',
+          backend: 'mock',
+          cloud: false,
+          curated: true,
+          downloaded: true,
+          ready: true,
+        },
       ],
     },
   }
   diagnostic: DiagnoseResponse = {
-    platform: 'mock',
+    platform: { os: 'mockos', os_release: '1.0', arch: 'arm64', runtime: 'native' },
     sections: [{ name: 'placement', status: 'ok', detail: 'thinking on mesh (mock)' }],
   }
   recallSnapshot: RecallResponse = {

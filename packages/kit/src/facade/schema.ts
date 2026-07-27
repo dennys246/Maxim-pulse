@@ -170,8 +170,7 @@ export interface components {
         };
         /** DiagnoseResponse */
         DiagnoseResponse: {
-            /** Platform */
-            platform: string;
+            platform?: components["schemas"]["PlatformWire"];
             /** Sections */
             sections?: components["schemas"]["DiagnoseSection"][];
         };
@@ -214,6 +213,11 @@ export interface components {
             /** Context Length */
             context_length?: number | null;
             /**
+             * Curated
+             * @default false
+             */
+            curated: boolean;
+            /**
              * Downloaded
              * @default false
              */
@@ -233,6 +237,37 @@ export interface components {
                 [key: string]: components["schemas"]["ModelInfoWire"][];
             };
         };
+        /**
+         * PlatformWire
+         * @description Structured platform identity for the StatusChip.
+         *
+         *     Contract fix (maxim-pulse): ``DiagnoseResponse.platform`` used to be a
+         *     stringified ``PlatformInfo`` repr (``"PlatformInfo(os='macos', …)"``) —
+         *     useless for display. These are the display-relevant fields, mapped from
+         *     ``doctor.platform_detect.PlatformInfo``.
+         */
+        PlatformWire: {
+            /**
+             * Arch
+             * @default
+             */
+            arch: string;
+            /**
+             * Os
+             * @default
+             */
+            os: string;
+            /**
+             * Os Release
+             * @default
+             */
+            os_release: string;
+            /**
+             * Runtime
+             * @default
+             */
+            runtime: string;
+        };
         /** Preference */
         Preference: {
             /** About */
@@ -246,8 +281,10 @@ export interface components {
             api_key?: string | null;
             /** Model */
             model?: string | null;
+            /** Provider */
+            provider?: string | null;
             /** Url */
-            url: string;
+            url?: string | null;
         };
         /** ProbeResult */
         ProbeResult: {
@@ -282,7 +319,10 @@ export interface components {
             detail?: string | null;
             /** Mode */
             mode: string;
-            /** Session Id */
+            /**
+             * Session Id
+             * @description Console-side run id (minted at accept; not the sim's internal session_id).
+             */
             session_id: string;
             /**
              * Status

@@ -7,6 +7,7 @@ export type {
   MeshSetupRequest,
   ModelInfo,
   ModelsResponse,
+  PlatformWire,
   Preference,
   ProbeRequest,
   ProbeResult,

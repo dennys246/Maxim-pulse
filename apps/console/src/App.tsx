@@ -1,12 +1,14 @@
 import {
   ConnectionTest,
+  LiveStatusChip,
+  MemoryView,
   ModelPicker,
   PageShell,
   Panel,
   Row,
+  RunSurface,
   SetupWizard,
   Stack,
-  StatusChip,
 } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
 
@@ -26,12 +28,18 @@ export default function App() {
     <PageShell title="Maxim Console">
       <Stack>
         <Row>
-          <StatusChip label="scaffold — not yet bound to maxim serve" tone="idle" />
+          <LiveStatusChip />
         </Row>
         <Panel variant="scene">
-          Phase-0 scaffold. Kit components land in Phase 2; console-only panels in Phase 3.
+          <h2 className="mb-2 text-sm font-semibold">Run</h2>
+          <RunSurface modes={['talk', 'adventure', 'sim', 'rest']} />
         </Panel>
-        <Panel variant="bio">bio-subsystem activity renders dimmed here (MaximDisplay IA).</Panel>
+        <Panel variant="bio">
+          <h2 className="mb-2 text-sm font-semibold text-scene-fg">
+            ✦ What Maxim remembers about you
+          </h2>
+          <MemoryView />
+        </Panel>
         <Panel>
           <Stack className="gap-2">
             <label className="text-sm text-fg-muted" htmlFor="leader-url">

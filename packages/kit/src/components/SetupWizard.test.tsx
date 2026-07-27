@@ -10,6 +10,7 @@ const cloudModel: ModelInfo = {
   name: 'claude-sonnet-5',
   backend: 'anthropic',
   cloud: true,
+  curated: true,
   downloaded: false,
   ready: true,
 }
@@ -66,17 +67,26 @@ test('mesh path: a failing test keeps Save locked', async () => {
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
 })
 
-test('cloud path: model + key + budget write through SETUP with defaults', async () => {
+test('cloud path: key probe gates Save, then writes through SETUP with defaults', async () => {
   const facade = new MockFacade()
   facade.models = { groups: { cloud: [cloudModel] } }
+  facade.probeResult = { status: 'ok', outcome: 'ok', message: 'key accepted' }
   const onComplete = renderWizard(facade)
 
   await userEvent.click(screen.getByText(/connect a cloud key/i))
   await userEvent.click(await screen.findByText('claude-sonnet-5'))
   await userEvent.type(screen.getByLabelText('API key'), 'sk-test')
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+  await screen.findByText(/key accepted/)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
   expect(await screen.findByText(/Maxim is set up/)).toBeInTheDocument()
+  expect(facade.requests).toContainEqual({
+    endpoint: '/api/probe',
+    body: { provider: 'anthropic', model: 'claude-sonnet-5', api_key: 'sk-test' },
+  })
   expect(facade.requests).toContainEqual({
     endpoint: '/api/setup/cloud',
     body: {
@@ -87,6 +97,28 @@ test('cloud path: model + key + budget write through SETUP with defaults', async
     },
   })
   expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ placement: 'cloud' }))
+})
+
+test('cloud path: warn (key accepted, not live-tested) unlocks Save; fail locks it', async () => {
+  const facade = new MockFacade()
+  facade.models = { groups: { cloud: [cloudModel] } }
+  facade.probeResult = {
+    status: 'warn',
+    outcome: 'cloud_key_not_live_tested',
+    message: 'Key accepted; live test pending.',
+  }
+  renderWizard(facade)
+  await userEvent.click(screen.getByText(/connect a cloud key/i))
+  await userEvent.click(await screen.findByText('claude-sonnet-5'))
+  await userEvent.type(screen.getByLabelText('API key'), 'sk-test')
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+  await screen.findByText(/Key accepted/)
+  expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+
+  facade.probeResult = { status: 'fail', outcome: 'bad_key', message: 'key rejected' }
+  await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+  await screen.findByText(/key rejected/)
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
 })
 
 test('SETUP 501 renders as pending, not an error', async () => {
