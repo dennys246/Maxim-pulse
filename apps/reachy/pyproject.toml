@@ -1,12 +1,13 @@
 # Reachy target — the thin Python ReachyMiniApp bootstrap (Layer 3).
 #
-# Phase 0: deliberately NO pymaxim / reachy-mini dependencies — the pins
-# (`reachy-mini[gstreamer]>=1.8.3,<2.0`, an explicit pymaxim version) land with
-# the Phase-2 bootstrap so the scaffold installs anywhere, including CI.
+# Base deps stay EMPTY so CI and dev installs are instant; everything real
+# rides the `robot` extra. pymaxim's own `reachy` extra owns the SDK pin
+# (`reachy-mini[gstreamer]>=1.8.3,<2.0` in pymaxim's pyproject) — we do not
+# double-pin it here, so the version-match-after-reflash rule has one owner.
 # This target versions on Pollen's SDK cadence (CLAUDE.md § Versioning).
 [project]
 name = "maxim-reachy-app"
-version = "0.0.1"
+version = "0.1.0"
 description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
 requires-python = ">=3.10"
 dependencies = []
@@ -19,6 +20,11 @@ Homepage = "https://pymaxim.bio"
 Documentation = "https://docs.pymaxim.bio"
 
 [project.optional-dependencies]
+# console = maxim serve's FastAPI/uvicorn; reachy = the Pollen SDK pin.
+# >=1.1 targets the first pymaxim RELEASE carrying the console seams (they
+# live on unreleased main as of 1.0.1) — until it ships, install pymaxim
+# from git. Bump this pin deliberately (CLAUDE.md § Versioning).
+robot = ["pymaxim[console,reachy]>=1.1,<2.0"]
 dev = ["pytest", "ruff"]
 
 [tool.ruff]
