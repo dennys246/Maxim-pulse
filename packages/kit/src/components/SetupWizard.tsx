@@ -15,10 +15,8 @@ import { ModelPicker } from './ModelPicker'
  *
  * The shell decides *when* to show this (first run = no resolvable placement,
  * or Settings → re-run); `onComplete` fires with the facade's SetupResult.
- *
- * Cloud-path note: the wire ProbeRequest is mesh-shaped (`url` required), so
- * the cloud form currently saves without a pre-test — flagged to pymaxim; the
- * "cheap cloud-key probe" slot is ready once the contract grows a shape for it.
+ * Both paths are test-before-save: mesh probes the leader URL, cloud runs the
+ * cheap key probe (provider + key, no url) — Save unlocks on a passing test.
  */
 export interface SetupWizardProps {
   onComplete?: (result: SetupResult) => void
@@ -49,6 +47,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [cloudModel, setCloudModel] = useState<ModelInfo | null>(null)
   const [cloudKey, setCloudKey] = useState('')
   const [budget, setBudget] = useState(DEFAULT_MONTHLY_BUDGET_USD)
+  const [cloudProbe, setCloudProbe] = useState<ProbeResult | null>(null)
 
   const finish = (setupResult: SetupResult) => {
     setResult(setupResult)
@@ -153,7 +152,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         <h2 className="text-lg font-semibold text-scene-fg">Connect a cloud key</h2>
         <ModelPicker
           value={cloudModel?.name}
-          onChange={setCloudModel}
+          onChange={(model) => {
+            setCloudModel(model)
+            setCloudProbe(null)
+          }}
           filter={(model) => model.cloud}
         />
         <label className="text-sm" htmlFor="setup-cloud-key">
@@ -164,7 +166,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           type="password"
           className="w-80 rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
           value={cloudKey}
-          onChange={(e) => setCloudKey(e.target.value)}
+          onChange={(e) => {
+            setCloudKey(e.target.value)
+            setCloudProbe(null)
+          }}
         />
         <label className="text-sm" htmlFor="setup-budget">
           Monthly spend cap (USD)
@@ -177,10 +182,26 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           value={budget}
           onChange={(e) => setBudget(Number(e.target.value))}
         />
+        {cloudModel !== null && cloudKey !== '' && (
+          <ConnectionTest
+            request={{
+              provider: cloudModel.backend,
+              model: cloudModel.name,
+              api_key: cloudKey,
+            }}
+            onResult={setCloudProbe}
+          />
+        )}
         <SaveRow
           state={save}
-          disabled={cloudModel === null || cloudKey === ''}
-          disabledHint="Pick a model and paste your key."
+          // The cloud key probe returns 'warn' for an accepted-but-not-live-tested
+          // key (outcome cloud_key_not_live_tested) — that unlocks Save; 'fail' locks.
+          disabled={
+            cloudModel === null ||
+            cloudKey === '' ||
+            (cloudProbe?.status !== 'ok' && cloudProbe?.status !== 'warn')
+          }
+          disabledHint="Pick a model, paste your key, and test it — Save unlocks on a passing test."
           onSave={() =>
             void runSave(() =>
               facade.setupCloud({

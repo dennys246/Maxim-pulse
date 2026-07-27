@@ -10,7 +10,7 @@ test('renders the label', () => {
 test('MockFacade serves diagnose offline (the pattern Phase-2 components bind through)', async () => {
   const facade = new MockFacade()
   const report = await facade.diagnose()
-  expect(report.platform).toBe('mock')
+  expect(report.platform?.os).toBe('mockos')
   expect(report.sections?.[0]?.status).toBe('ok')
 })
 

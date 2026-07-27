@@ -14,6 +14,7 @@
 import type { components } from './schema'
 
 export type ModelInfo = components['schemas']['ModelInfoWire']
+export type PlatformWire = components['schemas']['PlatformWire']
 export type ModelsResponse = components['schemas']['ModelsResponse']
 export type DiagnoseSection = components['schemas']['DiagnoseSection']
 export type DiagnoseResponse = components['schemas']['DiagnoseResponse']

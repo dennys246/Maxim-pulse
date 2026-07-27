@@ -9,6 +9,7 @@ const model = (name: string, extra: Partial<ModelInfo> = {}): ModelInfo => ({
   name,
   backend: 'llama_cpp',
   cloud: false,
+  curated: false,
   downloaded: false,
   ready: false,
   ...extra,
@@ -39,7 +40,22 @@ test('renders groups from the facade and selects on click', async () => {
   expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ name: 'claude-sonnet-5' }))
 })
 
-test('collapses to curatedCount with Show all', async () => {
+test('collapses to curated-marked profiles with Show all', async () => {
+  const facade = new MockFacade()
+  facade.models = {
+    groups: {
+      local: [model('a'), model('b', { curated: true }), model('c'), model('d', { curated: true })],
+    },
+  }
+  renderPicker(facade)
+  expect(await screen.findByText('b')).toBeInTheDocument()
+  expect(screen.getByText('d')).toBeInTheDocument()
+  expect(screen.queryByText('a')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByText('Show all 4'))
+  expect(screen.getByText('a')).toBeInTheDocument()
+})
+
+test('falls back to curatedCount when nothing is marked curated', async () => {
   const facade = new MockFacade()
   facade.models = {
     groups: { local: [model('a'), model('b'), model('c'), model('d'), model('e')] },

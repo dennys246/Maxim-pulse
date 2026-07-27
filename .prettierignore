@@ -8,3 +8,5 @@ apps/reachy/maxim_reachy_app/
 apps/reachy/tests/
 docs/
 LICENSE
+# mirror of pymaxim src/maxim/console/openapi.json — keep byte-identical, never reformat
+packages/kit/openapi.json

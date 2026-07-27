@@ -6,10 +6,10 @@ import type { ModelInfo, ModelsResponse } from '../facade/types'
 /**
  * ModelPicker — curated + full profile list over `api.list_models`
  * (maxim_console.md component inventory). Groups come straight from the
- * facade (`ModelsResponse.groups`); each group shows the first few profiles
- * with the rest behind "Show all" (the wizard's curated-vs-Advanced split).
- * The wire contract has no curated marker yet — collapse-by-count stands in
- * until pymaxim adds one (flagged).
+ * facade (`ModelsResponse.groups`); each group collapses to its
+ * `curated: true` profiles (the wizard's "2–3 curated ▾"), with the full
+ * list behind "Show all" (Advanced). Groups with no curated marker fall
+ * back to the first `curatedCount`.
  */
 export interface ModelPickerProps {
   /** Selected profile name. */
@@ -17,7 +17,7 @@ export interface ModelPickerProps {
   onChange?: (model: ModelInfo) => void
   /** Show only matching profiles (e.g. cloud-only for the cloud setup path). */
   filter?: (model: ModelInfo) => boolean
-  /** Profiles shown per group before "Show all". */
+  /** Fallback profiles shown per group before "Show all" when none are marked curated. */
   curatedCount?: number
 }
 
@@ -71,7 +71,9 @@ export function ModelPicker({ value, onChange, filter, curatedCount = 3 }: Model
     <div className="flex flex-col gap-3">
       {groups.map(([group, models]) => {
         const isExpanded = expanded.has(group)
-        const shown = isExpanded ? models : models.slice(0, curatedCount)
+        const curated = models.filter((model) => model.curated)
+        const collapsed = curated.length > 0 ? curated : models.slice(0, curatedCount)
+        const shown = isExpanded ? models : collapsed
         return (
           <div key={group}>
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
@@ -101,7 +103,7 @@ export function ModelPicker({ value, onChange, filter, curatedCount = 3 }: Model
                 </li>
               ))}
             </ul>
-            {models.length > curatedCount && (
+            {models.length > collapsed.length && (
               <button
                 className="mt-1 text-xs text-accent"
                 onClick={() =>
