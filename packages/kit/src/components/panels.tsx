@@ -35,16 +35,75 @@ export function ActivityPanel() {
   )
 }
 
+/** Terminal parity: the enrichment tag icons from MaximDisplay's thinking panel. */
+const TAG_ICONS: Record<string, string> = {
+  hippocampus: '💾',
+  nac: '🧠',
+  atl: '🏷️',
+  cerebellum: '🎯',
+  component_index: '🗺️',
+  working_memory: '📝',
+  fear: '😨',
+  sensory: '📡',
+}
+
+function asStrings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
+}
+
+/**
+ * ThinkingPanel — the reasoning chain itself, not a "thoughts exist" light.
+ *
+ * `deliberation` records carry the reasoning in `data.text` (the counter in
+ * `message` is only a cycle marker), plus which bio-systems enriched each
+ * cycle (`enrichment_tags`/`enrichment_details`) — exactly the panel the
+ * plans describe. Reasoning renders UNDIMMED: the terminal deliberately keeps
+ * PFC subsystems (thought/deliberation) out of its bio-dim set.
+ */
 export function ThinkingPanel() {
   const events = useEvents({ kinds: ['deliberation'], limit: 20 })
   if (events.length === 0) return <p className="text-xs text-bio-fg">No active deliberation.</p>
   return (
-    <ol data-testid="thinking-panel" className="flex flex-col gap-1">
-      {events.map((event, index) => (
-        <li key={index} className="text-xs text-bio-fg">
-          {event.message}
-        </li>
-      ))}
+    <ol data-testid="thinking-panel" className="flex flex-col gap-2">
+      {events.map((event, index) => {
+        const data = event.data ?? {}
+        const text = typeof data.text === 'string' && data.text !== '' ? data.text : event.message
+        const cycle = typeof data.cycle === 'number' ? data.cycle : null
+        const maxCycles = typeof data.max_cycles === 'number' ? data.max_cycles : null
+        const completed = data.completed === true
+        const tags = asStrings(data.enrichment_tags)
+        const details =
+          typeof data.enrichment_details === 'object' && data.enrichment_details !== null
+            ? (data.enrichment_details as Record<string, unknown>)
+            : {}
+        return (
+          <li key={index} className="border-l-2 border-edge pl-2">
+            <p className="text-[10px] uppercase tracking-wide text-fg-muted">
+              {completed
+                ? 'complete'
+                : cycle != null
+                  ? `cycle ${cycle}${maxCycles != null ? `/${maxCycles}` : ''}`
+                  : 'thinking'}
+            </p>
+            <p className="whitespace-pre-wrap text-xs text-fg">{text}</p>
+            {tags.length > 0 && (
+              <p className="mt-1 flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    title={typeof details[tag] === 'string' ? details[tag] : tag}
+                    className="rounded-sm border border-edge px-1 text-[10px] text-bio-fg"
+                  >
+                    {TAG_ICONS[tag] ?? '🔬'} {tag}
+                  </span>
+                ))}
+              </p>
+            )}
+          </li>
+        )
+      })}
     </ol>
   )
 }
