@@ -11,7 +11,7 @@ import { AdventureLauncher } from './AdventureLauncher'
  * stays the constant center. All input rides the HANDLE seam — no
  * back-channels.
  *
- * Until pymaxim's Phase-3 streaming bridge: talk/rest answer typed 501s
+ * Until pymaxim's EVENT-seam streaming bridge: talk/rest answer typed 501s
  * (rendered as gentle system lines); adventure runs for real (narrative in
  * the serve terminal).
  */
