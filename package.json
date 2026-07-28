@@ -19,7 +19,8 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "build": "pnpm -r run build",
-    "size:reachy": "node scripts/size-reachy.mjs"
+    "size:reachy": "node scripts/size-reachy.mjs",
+    "dist:pack": "node scripts/pack-dist.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
