@@ -20,7 +20,7 @@ export function Drawer({
     <div className="fixed inset-0 z-40">
       <div
         aria-hidden
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-overlay"
         onClick={onClose}
         data-testid="drawer-backdrop"
       />

@@ -30,6 +30,9 @@
   --mx-warn: #f0b429;
   --mx-err: #f06449;
 
+  /* -- overlay scrim (Drawer/modal backdrops) -- */
+  --mx-overlay: rgba(0, 0, 0, 0.4);
+
   /* -- space / radius / type -- */
   --mx-space-1: 0.25rem;
   --mx-space-2: 0.5rem;
