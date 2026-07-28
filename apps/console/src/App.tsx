@@ -23,6 +23,7 @@ export default function App() {
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
   const [model, setModel] = useState<string | undefined>()
   const [showSetup, setShowSetup] = useState(false)
+  const [campaign, setCampaign] = useState('')
 
   return (
     <PageShell title="Maxim Console">
@@ -32,7 +33,23 @@ export default function App() {
         </Row>
         <Panel variant="scene">
           <h2 className="mb-2 text-sm font-semibold">Run</h2>
-          <RunSurface modes={['talk', 'adventure', 'sim', 'rest']} />
+          <Stack className="gap-2">
+            <label className="text-sm text-fg-muted" htmlFor="campaign-path">
+              Campaign YAML (required for Adventure — e.g.
+              ~/Scripts/Maxim/scenarios/campaigns/darkened_cavern_v1.yaml)
+            </label>
+            <input
+              id="campaign-path"
+              className="w-full max-w-xl rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
+              placeholder="/path/to/campaign.yaml"
+              value={campaign}
+              onChange={(e) => setCampaign(e.target.value)}
+            />
+            <RunSurface
+              modes={['talk', 'adventure', 'sim', 'rest']}
+              campaign={campaign === '' ? undefined : campaign}
+            />
+          </Stack>
         </Panel>
         <Panel variant="bio">
           <h2 className="mb-2 text-sm font-semibold text-scene-fg">
