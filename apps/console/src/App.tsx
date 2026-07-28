@@ -13,6 +13,7 @@ import {
   TopBar,
   TopBarButton,
   TopBarLink,
+  TurnStatus,
   usePanelDock,
 } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
@@ -87,7 +88,7 @@ function Shell() {
       <main className="flex min-h-0 flex-1 flex-row">
         <PanelRail side="left" />
         <div className="min-h-0 min-w-0 flex-1">
-          <ChatSurface />
+          <ChatSurface statusSlot={<TurnStatus />} />
         </div>
         <PanelRail side="right" />
       </main>

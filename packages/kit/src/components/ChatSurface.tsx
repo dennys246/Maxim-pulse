@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFacade } from '../facade/context'
 import { FacadeError } from '../facade/http'
 import type { RunRequest } from '../facade/types'
@@ -27,9 +27,17 @@ const lineStyle: Record<ChatLine['role'], string> = {
   system: 'text-fg-muted italic',
 }
 
-// 🎲 opens the AdventureLauncher (campaign path or free-text idea) — the
-// surface needs no shell-provided props.
-export function ChatSurface() {
+export interface ChatSurfaceProps {
+  /**
+   * Rendered between the conversation and the input row — the shell's slot for
+   * run/turn state (e.g. <TurnStatus />). A slot rather than a direct import so
+   * this surface keeps its provider-free contract (facade only).
+   */
+  statusSlot?: ReactNode
+}
+
+// 🎲 opens the AdventureLauncher (campaign path or free-text idea).
+export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const facade = useFacade()
   const [launcherOpen, setLauncherOpen] = useState(false)
   const [lines, setLines] = useState<ChatLine[]>([
@@ -112,6 +120,8 @@ export function ChatSurface() {
           ))}
         </div>
       </div>
+
+      {statusSlot}
 
       {/* input row */}
       <div className="flex items-center gap-2 border-t border-edge bg-surface p-3">
