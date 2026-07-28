@@ -22,9 +22,11 @@ const BACKOFF_CAP_MS = 8_000
  * Connects lazily on the first subscriber, dispatches ConsoleEvent envelopes
  * by `kind` (subscribe to `'*'` for every event), reconnects with capped
  * exponential backoff while subscribers exist, and closes the socket when the
- * last subscriber leaves. The skeleton stream is heartbeat-only; the EVENT
- * seam (v2 envelope: sim_log vocabulary, tier/seq/run_id, filter frames)
- * fills it in — this transport is already shaped for it.
+ * last subscriber leaves. The EVENT seam is LIVE server-side: /ws streams
+ * sim_log records as v2 envelopes (kind = lowercased subsystem, tier as the
+ * typed filter axis, seq/run_id, drop-oldest backpressure with a "dropped"
+ * meta-event). Client→server SubscribeFrame filtering is a follow-up — this
+ * transport is receive-only today, so it gets the unfiltered stream.
  */
 export class WsEventSource {
   private handlers = new Map<string, Set<EventHandler>>()

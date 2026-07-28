@@ -1,5 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
-import { FacadeProvider, MockFacade } from '../facade'
+import { FacadeProvider, MockFacade, wireEvent } from '../facade'
 import { EventClientProvider } from '../facade/eventClient'
 import { ActivityPanel, ThinkingPanel } from './panels'
 
@@ -11,24 +11,24 @@ function withStream(facade: MockFacade, ui: React.ReactElement) {
   )
 }
 
-test('ActivityPanel lists non-heartbeat events with agent ids', () => {
+test('ActivityPanel lists bio-tier events with message + agent; clean tier excluded', () => {
   const facade = new MockFacade()
   withStream(facade, <ActivityPanel />)
   act(() => {
-    facade.emit({ kind: 'heartbeat', ts: 1 })
-    facade.emit({ kind: 'nac_reward', ts: 2, agent_id: 'console' })
+    facade.emit(wireEvent('heartbeat', { tier: 'clean' }))
+    facade.emit(wireEvent('nac', { message: 'reward +0.4 for door_choice', agent: 'console' }))
   })
   const panel = screen.getByTestId('activity-panel')
-  expect(panel).toHaveTextContent('nac_reward · console')
+  expect(panel).toHaveTextContent('[nac] reward +0.4 for door_choice · console')
   expect(panel).not.toHaveTextContent('heartbeat')
 })
 
-test('ThinkingPanel accumulates the reasoning chain, not just the last line', () => {
+test('ThinkingPanel accumulates the deliberation chain, not just the last line', () => {
   const facade = new MockFacade()
   withStream(facade, <ThinkingPanel />)
   act(() => {
-    facade.emit({ kind: 'thinking', ts: 1, data: { text: 'weighing the door' } })
-    facade.emit({ kind: 'thinking', ts: 2, data: { text: 'recalling the trap' } })
+    facade.emit(wireEvent('deliberation', { message: 'weighing the door' }))
+    facade.emit(wireEvent('deliberation', { message: 'recalling the trap' }))
   })
   const panel = screen.getByTestId('thinking-panel')
   expect(panel).toHaveTextContent('weighing the door')

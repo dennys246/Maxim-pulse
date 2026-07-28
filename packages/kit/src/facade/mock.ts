@@ -95,3 +95,15 @@ export class MockFacade implements FacadeClient {
     this.handlers.get('*')?.forEach((handler) => handler(event))
   }
 }
+
+let wireSeq = 0
+
+/**
+ * Test factory for valid v2 envelopes (kind = lowercased sim_log subsystem,
+ * tier defaults to 'bio' — the server's unknown-subsystem default; meta-kinds
+ * like heartbeat should pass tier: 'clean').
+ */
+export function wireEvent(kind: string, over: Partial<ConsoleEvent> = {}): ConsoleEvent {
+  wireSeq += 1
+  return { kind, ts: wireSeq, seq: wireSeq, tier: 'bio', message: '', ...over }
+}

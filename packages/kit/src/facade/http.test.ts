@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import { WsEventSource, type WsLike } from './events'
+import { wireEvent } from './mock'
 import { FacadeError, HttpFacade } from './http'
 import type { ConsoleEvent } from './types'
 
@@ -88,8 +89,8 @@ test('WsEventSource dispatches by kind and to "*", and closes on last unsubscrib
   const offAll = source.on('*', (e) => all.push(e.kind))
   const ws = FakeWs.instances[0]!
   ws.open()
-  ws.receive({ kind: 'heartbeat', ts: 1 })
-  ws.receive({ kind: 'sim_log', ts: 2 })
+  ws.receive(wireEvent('heartbeat', { tier: 'clean' }))
+  ws.receive(wireEvent('sim_log'))
   expect(byKind).toEqual(['heartbeat'])
   expect(all).toEqual(['heartbeat', 'sim_log'])
   offKind()
@@ -114,7 +115,7 @@ test('WsEventSource reconnects with backoff while subscribed', () => {
     vi.advanceTimersByTime(500) // first backoff step
     expect(FakeWs.instances).toHaveLength(2)
     FakeWs.instances[1]!.open()
-    FakeWs.instances[1]!.receive({ kind: 'heartbeat', ts: 42 })
+    FakeWs.instances[1]!.receive(wireEvent('heartbeat', { tier: 'clean', ts: 42 }))
     expect(seen).toEqual([42])
   } finally {
     vi.useRealTimers()

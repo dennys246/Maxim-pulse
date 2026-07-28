@@ -18,7 +18,7 @@ export type {
   StoryMemory,
 } from './types'
 export type { components, paths } from './schema'
-export { MockFacade } from './mock'
+export { MockFacade, wireEvent } from './mock'
 export { HttpFacade, FacadeError, type HttpFacadeOptions } from './http'
 export { WsEventSource, type WsFactory, type WsLike } from './events'
 export { FacadeProvider, useFacade } from './context'

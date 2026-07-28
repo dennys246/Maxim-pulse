@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { FacadeProvider, MockFacade } from '../facade'
+import { FacadeProvider, MockFacade, wireEvent } from '../facade'
 import { EventClientProvider, useEvents } from '../facade/eventClient'
 import type { ConsoleEvent } from '../facade/types'
 import { PanelProvider, PanelRail, type PanelSpec } from './PanelDock'
@@ -50,18 +50,18 @@ test('a matching event opens the panel (Maxim-driven activation)', () => {
   const facade = new MockFacade()
   renderDock(facade)
   expect(screen.queryByText('activity body')).not.toBeInTheDocument()
-  act(() => facade.emit({ kind: 'nac', ts: 1 }))
+  act(() => facade.emit(wireEvent('nac')))
   expect(screen.getByText('activity body')).toBeInTheDocument()
 })
 
 test('floor semantics: a user-closed panel is only SUGGESTED, and a click opens it', async () => {
   const facade = new MockFacade()
   renderDock(facade)
-  act(() => facade.emit({ kind: 'nac', ts: 1 }))
+  act(() => facade.emit(wireEvent('nac')))
   await userEvent.click(screen.getByLabelText('Close Bio activity'))
   expect(screen.queryByText('activity body')).not.toBeInTheDocument()
 
-  act(() => facade.emit({ kind: 'nac', ts: 2 }))
+  act(() => facade.emit(wireEvent('nac')))
   // NOT reopened — suggested instead (chip hints)
   expect(screen.queryByText('activity body')).not.toBeInTheDocument()
   expect(screen.getByTitle(/Maxim has something to show/)).toBeInTheDocument()
@@ -85,8 +85,8 @@ test('EventHub replays buffered events to late subscribers', () => {
     </FacadeProvider>,
   )
   act(() => {
-    facade.emit({ kind: 'nac', ts: 1 })
-    facade.emit({ kind: 'other', ts: 2 })
+    facade.emit(wireEvent('nac'))
+    facade.emit(wireEvent('other'))
   })
   rerender(
     <FacadeProvider facade={facade}>

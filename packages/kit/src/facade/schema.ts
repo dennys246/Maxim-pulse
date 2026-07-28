@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events/subscribe-frame": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** WS filter frame shape (type-gen only; send frames on /ws) */
+        get: operations["get_subscribe_frame_api_events_subscribe_frame_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/models": {
         parameters: {
             query?: never;
@@ -155,16 +172,45 @@ export interface components {
             /** Provider */
             provider: string;
         };
-        /** ConsoleEvent */
+        /**
+         * ConsoleEvent
+         * @description v2 envelope (reachy_app_maxim_seams.md § EVENT) — the wire event IS the
+         *     ``sim_log`` record, bridged via ``register_sim_sink``.
+         *
+         *     ``kind`` stays an OPEN string (lowercased sim_log subsystem) — a closed
+         *     Literal would fight the ``_SUBSYSTEM_TIERS`` unknown→BIO opt-out invariant
+         *     (new subsystems must surface by default). The typed axis clients filter on
+         *     is ``tier`` (server-computed per event, unknown subsystem → "bio").
+         *
+         *     ``data`` is the documented per-producer escape hatch (the
+         *     ``DiagnoseSection.extra`` precedent): the payload varies across 30+
+         *     subsystems; the envelope fields are the contract. Per-kind typed models for
+         *     headline kinds are a later additive step if a panel needs them.
+         */
         ConsoleEvent: {
+            /** Agent */
+            agent?: string | null;
             /** Agent Id */
             agent_id?: string | null;
             /** Data */
             data?: {
                 [key: string]: unknown;
             };
+            /** Elapsed S */
+            elapsed_s?: number | null;
             /** Kind */
             kind: string;
+            /** Message */
+            message: string;
+            /** Run Id */
+            run_id?: string | null;
+            /** Seq */
+            seq: number;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "clean" | "bio" | "debug";
             /** Ts */
             ts: number;
         };
@@ -363,6 +409,29 @@ export interface components {
             /** When */
             when?: string | null;
         };
+        /**
+         * SubscribeFrame
+         * @description Client→server ``/ws`` filter frame — the terminal's ``_show_channels`` /
+         *     ``DisplayTier`` model lifted to the socket (a thin UI subscribes to less).
+         *
+         *     Semantics: axes AND together; within the subsystem axis, ``channels`` and
+         *     ``kinds`` union. ``tier`` passes events whose tier ≤ the requested tier
+         *     (requesting "clean" = headline only; "debug" = everything). No frame (or
+         *     all-None) = everything. Meta-kinds (heartbeat/run/dropped and the agent's
+         *     "display" suggestions) bypass filtering — they carry stream/UI state, not
+         *     subsystem traffic.
+         *
+         *     OpenAPI does not model WS payloads, so ``GET /events/subscribe-frame``
+         *     documents this shape for type-gen (same trick as ``/events/envelope``).
+         */
+        SubscribeFrame: {
+            /** Channels */
+            channels?: string[] | null;
+            /** Kinds */
+            kinds?: string[] | null;
+            /** Tier */
+            tier?: ("clean" | "bio" | "debug") | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -417,6 +486,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsoleEvent"];
+                };
+            };
+        };
+    };
+    get_subscribe_frame_api_events_subscribe_frame_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribeFrame"];
                 };
             };
         };
