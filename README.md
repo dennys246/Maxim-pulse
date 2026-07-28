@@ -41,6 +41,39 @@ pnpm build && pnpm size:reachy
 Architecture and standards: [AGENTS.md](AGENTS.md) · workflow and checks:
 [CLAUDE.md](CLAUDE.md) · plans: [docs/plans/](docs/plans/).
 
+## Shipping the UI to Python (the dist handoff)
+
+The bundles are built here but **served from Python** — `maxim serve` for the
+Console, the `ReachyMiniApp` bootstrap on the robot. `dist/` is gitignored build
+output, so for a shipped `pip install pymaxim && maxim serve` (no `--ui-dist`)
+the bundle must be vendored into the wheel as package data:
+
+```bash
+pnpm build && pnpm dist:pack   # → artifacts/{console,reachy}-dist.tar.gz
+```
+
+Each archive's root **is** the dist root — extract straight into the target dir:
+
+| Artifact              | Vendors into                           | Served by                                               |
+| --------------------- | -------------------------------------- | ------------------------------------------------------- |
+| `console-dist.tar.gz` | `src/maxim/console/ui_dist/` (pymaxim) | `maxim serve`, defaulting `console.ui_dist`             |
+| `reachy-dist.tar.gz`  | `maxim_reachy_app/ui_dist/`            | the ReachyMiniApp bootstrap (already prefers this path) |
+
+CI uploads both on every build and attaches them to the GitHub release when a
+`v*` tag is pushed — vendor from a pinned tag, not from `main`.
+
+**Contract stamp.** Every bundle carries `maxim-ui.json`:
+
+```json
+{ "target": "console", "app_version": "0.0.1", "contract_version": "0.1.0", "commit": "abc1234" }
+```
+
+`contract_version` is the `info.version` of the `maxim serve` OpenAPI contract
+the bundle's typed client was generated against. Serving a bundle whose
+`contract_version` differs from the server's own is the one drift
+`gen:facade:check` can't catch — it crosses the release boundary — so consumers
+should read this file and warn on mismatch.
+
 ## License
 
 [Apache-2.0](LICENSE)
