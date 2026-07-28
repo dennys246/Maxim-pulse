@@ -41,7 +41,7 @@ export function AdventureLauncher({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         aria-hidden
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-overlay"
         onClick={onClose}
         data-testid="launcher-backdrop"
       />

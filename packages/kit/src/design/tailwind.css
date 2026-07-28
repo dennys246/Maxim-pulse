@@ -22,6 +22,7 @@
   --color-ok: var(--mx-ok);
   --color-warn: var(--mx-warn);
   --color-err: var(--mx-err);
+  --color-overlay: var(--mx-overlay);
 
   --font-sans: var(--mx-font-sans);
   --font-mono: var(--mx-font-mono);

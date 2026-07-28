@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { FacadeProvider, MockFacade } from '../facade'
@@ -66,17 +66,4 @@ test('an idea-only launch sends input and renders the pending-seam line on 422',
   expect(
     await screen.findByText(/can’t imagine an adventure from a description yet/),
   ).toBeInTheDocument()
-})
-
-test('/ws events land in the bio ticker', async () => {
-  const facade = new MockFacade()
-  renderChat(facade)
-  act(() => {
-    facade.emit({ kind: 'heartbeat', ts: 1 })
-    facade.emit({ kind: 'nac_reward', ts: 2, agent_id: 'console' })
-  })
-  await userEvent.click(screen.getByText(/bio activity \(2\)/))
-  const ticker = screen.getByTestId('bio-ticker')
-  expect(ticker).toHaveTextContent('heartbeat')
-  expect(ticker).toHaveTextContent('nac_reward · console')
 })

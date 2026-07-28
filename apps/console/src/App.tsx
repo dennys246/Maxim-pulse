@@ -1,15 +1,19 @@
 import {
   ChatSurface,
   ConnectionTest,
+  CORE_PANELS,
   Drawer,
+  EventClientProvider,
   LiveStatusChip,
-  MemoryView,
   ModelPicker,
+  PanelProvider,
+  PanelRail,
   SetupWizard,
   Stack,
   TopBar,
   TopBarButton,
   TopBarLink,
+  usePanelDock,
 } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
 
@@ -19,15 +23,27 @@ const PlaceholderFlowPanel = lazy(() =>
   import('@maxim/kit/viz').then((m) => ({ default: m.PlaceholderFlowPanel })),
 )
 
-type OpenSurface = 'none' | 'models' | 'memory' | 'settings'
+type OpenSurface = 'none' | 'models' | 'settings'
 
 export default function App() {
+  return (
+    <EventClientProvider>
+      <PanelProvider panels={CORE_PANELS}>
+        <Shell />
+      </PanelProvider>
+    </EventClientProvider>
+  )
+}
+
+function Shell() {
   const [open, setOpen] = useState<OpenSurface>('none')
   const [model, setModel] = useState<string | undefined>()
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
   const [showGraph, setShowGraph] = useState(false)
+  const { toggle } = usePanelDock()
 
-  const toggle = (surface: OpenSurface) => setOpen((prev) => (prev === surface ? 'none' : surface))
+  const toggleSurface = (surface: OpenSurface) =>
+    setOpen((prev) => (prev === surface ? 'none' : surface))
 
   return (
     <div className="flex h-screen flex-col bg-bg font-sans text-fg">
@@ -35,13 +51,13 @@ export default function App() {
         left={<LiveStatusChip />}
         right={
           <>
-            <TopBarButton label="Models" onClick={() => toggle('models')}>
+            <TopBarButton label="Models" onClick={() => toggleSurface('models')}>
               {model ?? 'model'} ▾
             </TopBarButton>
             <TopBarButton label="What Maxim remembers" onClick={() => toggle('memory')}>
               ✦
             </TopBarButton>
-            <TopBarButton label="Settings" onClick={() => toggle('settings')}>
+            <TopBarButton label="Settings" onClick={() => toggleSurface('settings')}>
               ⚙
             </TopBarButton>
             <TopBarLink
@@ -67,9 +83,13 @@ export default function App() {
         }
       />
 
-      {/* the landing IS the chat — solo-mode users start here, no gauntlet */}
-      <main className="min-h-0 flex-1">
-        <ChatSurface />
+      {/* the terminal's two-column body, generalized: rails flank the chat core */}
+      <main className="flex min-h-0 flex-1 flex-row">
+        <PanelRail side="left" />
+        <div className="min-h-0 min-w-0 flex-1">
+          <ChatSurface />
+        </div>
+        <PanelRail side="right" />
       </main>
 
       <Drawer open={open === 'models'} title="Models" onClose={() => setOpen('none')}>
@@ -80,14 +100,6 @@ export default function App() {
             setOpen('none')
           }}
         />
-      </Drawer>
-
-      <Drawer
-        open={open === 'memory'}
-        title="✦ What Maxim remembers about you"
-        onClose={() => setOpen('none')}
-      >
-        <MemoryView />
       </Drawer>
 
       <Drawer open={open === 'settings'} title="Settings" onClose={() => setOpen('none')}>

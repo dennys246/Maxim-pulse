@@ -30,9 +30,20 @@ export default tseslint.config(
   {
     // The code-split boundary (AGENTS.md § Repo conventions): heavy dashboard viz must
     // never enter the Reachy on-device bundle. `pnpm size:reachy` is the build-time
-    // backstop; this catches the mistake in the editor.
-    files: ['apps/reachy/ui/**/*.{ts,tsx}'],
+    // backstop; this catches the mistake in the editor. Kit source (minus viz itself)
+    // is covered too — the lean entry must never reach the heavy deps.
+    files: ['apps/reachy/ui/**/*.{ts,tsx}', 'packages/kit/src/**/*.{ts,tsx}'],
+    ignores: ['packages/kit/src/viz/**'],
     rules: {
+      // no-restricted-imports doesn't see dynamic import(); this does.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'ImportExpression > Literal[value=/^(@maxim\\u002Fkit\\u002Fviz|@xyflow|@visx)/]',
+          message: 'Heavy viz must not be imported (even dynamically) outside the console shell.',
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {

@@ -16,4 +16,13 @@ export { MemoryView } from './components/MemoryView'
 export { RunSurface, type RunSurfaceProps } from './components/RunSurface'
 export { ChatSurface } from './components/ChatSurface'
 export { AdventureLauncher } from './components/AdventureLauncher'
+export { PanelProvider, PanelRail, usePanelDock, type PanelSpec } from './components/PanelDock'
+export { ActivityPanel, ThinkingPanel, CORE_PANELS } from './components/panels'
+export {
+  EventClientProvider,
+  EventHub,
+  useEventClient,
+  useEvents,
+  type EventFilter,
+} from './facade/eventClient'
 export * from './facade'

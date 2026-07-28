@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFacade } from '../facade/context'
 import { FacadeError } from '../facade/http'
-import type { ConsoleEvent, RunRequest } from '../facade/types'
+import type { RunRequest } from '../facade/types'
 import { AdventureLauncher } from './AdventureLauncher'
 
 /**
- * ChatSurface — the chat-first landing: the ported MaximDisplay spread as a
- * single surface. Conversation renders BRIGHT (scene); bio-subsystem activity
- * renders DIMMED underneath (bio) as a collapsible ticker; a thinking slot
- * sits between them. All input rides the HANDLE seam (`POST /api/run`) and
- * the /ws event stream — no back-channels.
+ * ChatSurface — the core of the MaximDisplay IA port: conversation/narrative
+ * BRIGHT (scene) + input. Bio-activity and thinking now live as PanelDock
+ * rail panels beside this core (the terminal's two-column body); this surface
+ * stays the constant center. All input rides the HANDLE seam — no
+ * back-channels.
  *
  * Until pymaxim's Phase-3 streaming bridge: talk/rest answer typed 501s
- * (rendered as gentle system lines), adventure runs for real (narrative in
- * the serve terminal), and the ticker shows whatever /ws sends (heartbeats
- * today — a liveness signal; the full api.on() stream drops in unchanged).
+ * (rendered as gentle system lines); adventure runs for real (narrative in
+ * the serve terminal).
  */
 
 interface ChatLine {
@@ -38,21 +37,7 @@ export function ChatSurface() {
   ])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const [activity, setActivity] = useState<ConsoleEvent[]>([])
-  const [showActivity, setShowActivity] = useState(false)
-  const [thinking, setThinking] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const offAll = facade.on('*', (event) => {
-      setActivity((prev) => [...prev.slice(-49), event])
-      if (event.kind === 'thinking') {
-        const text = typeof event.data?.text === 'string' ? event.data.text : event.kind
-        setThinking((prev) => [...prev.slice(-19), text])
-      }
-    })
-    return offAll
-  }, [facade])
 
   useEffect(() => {
     // optional-call: jsdom has no scrollTo
@@ -126,33 +111,6 @@ export function ChatSurface() {
             </p>
           ))}
         </div>
-      </div>
-
-      {/* thinking — appears when the stream carries it */}
-      {thinking.length > 0 && (
-        <div className="border-t border-edge bg-bio px-4 py-2">
-          <p className="text-xs text-bio-fg">thinking · {thinking[thinking.length - 1]}</p>
-        </div>
-      )}
-
-      {/* bio activity ticker — dimmed, collapsible */}
-      <div className="border-t border-edge bg-bio px-4 py-1">
-        <button
-          className="text-xs text-bio-fg hover:text-fg-muted"
-          onClick={() => setShowActivity((v) => !v)}
-        >
-          {showActivity ? '▾' : '▸'} bio activity ({activity.length})
-        </button>
-        {showActivity && (
-          <ul className="max-h-32 overflow-y-auto py-1" data-testid="bio-ticker">
-            {activity.slice(-12).map((event, index) => (
-              <li key={index} className="font-mono text-xs text-bio-fg">
-                {event.kind}
-                {event.agent_id != null && ` · ${event.agent_id}`}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {/* input row */}
