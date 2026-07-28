@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useFacade } from '../facade/context'
 import { FacadeError } from '../facade/http'
 import type { ConsoleEvent, RunRequest } from '../facade/types'
+import { AdventureLauncher } from './AdventureLauncher'
 
 /**
  * ChatSurface — the chat-first landing: the ported MaximDisplay spread as a
@@ -15,10 +16,6 @@ import type { ConsoleEvent, RunRequest } from '../facade/types'
  * the serve terminal), and the ticker shows whatever /ws sends (heartbeats
  * today — a liveness signal; the full api.on() stream drops in unchanged).
  */
-export interface ChatSurfaceProps {
-  /** Campaign YAML path for 🎲 (shell-provided, e.g. from the settings drawer). */
-  campaign?: string
-}
 
 interface ChatLine {
   role: 'user' | 'maxim' | 'system'
@@ -31,8 +28,11 @@ const lineStyle: Record<ChatLine['role'], string> = {
   system: 'text-fg-muted italic',
 }
 
-export function ChatSurface({ campaign }: ChatSurfaceProps) {
+// 🎲 opens the AdventureLauncher (campaign path or free-text idea) — the
+// surface needs no shell-provided props.
+export function ChatSurface() {
   const facade = useFacade()
+  const [launcherOpen, setLauncherOpen] = useState(false)
   const [lines, setLines] = useState<ChatLine[]>([
     { role: 'system', text: 'Maxim is listening. Say something, or start an 🎲 Adventure.' },
   ])
@@ -86,7 +86,15 @@ export function ChatSurface({ campaign }: ChatSurfaceProps) {
               : `${request.mode} isn’t available yet: ${error.detail}`,
         })
       } else if (error instanceof FacadeError && error.status === 422) {
-        push({ role: 'system', text: `Couldn’t start: ${error.detail}` })
+        if (request.mode === 'adventure' && request.campaign == null && request.input != null) {
+          // idea-only launch: the generative-adventure seam hasn't landed yet
+          push({
+            role: 'system',
+            text: 'Maxim can’t imagine an adventure from a description yet — that seam is on its way. Pick a campaign YAML in the 🎲 launcher meanwhile.',
+          })
+        } else {
+          push({ role: 'system', text: `Couldn’t start: ${error.detail}` })
+        }
       } else {
         push({
           role: 'system',
@@ -173,7 +181,7 @@ export function ChatSurface({ campaign }: ChatSurfaceProps) {
           title="Start Adventure"
           className="rounded-panel border border-edge bg-surface px-3 py-2 text-sm disabled:opacity-50"
           disabled={busy}
-          onClick={() => void start({ mode: 'adventure', campaign: campaign ?? null })}
+          onClick={() => setLauncherOpen(true)}
         >
           🎲
         </button>
@@ -187,6 +195,12 @@ export function ChatSurface({ campaign }: ChatSurfaceProps) {
           😴
         </button>
       </div>
+
+      <AdventureLauncher
+        open={launcherOpen}
+        onClose={() => setLauncherOpen(false)}
+        onLaunch={(request) => void start(request)}
+      />
     </div>
   )
 }

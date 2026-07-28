@@ -24,7 +24,6 @@ type OpenSurface = 'none' | 'models' | 'memory' | 'settings'
 export default function App() {
   const [open, setOpen] = useState<OpenSurface>('none')
   const [model, setModel] = useState<string | undefined>()
-  const [campaign, setCampaign] = useState('')
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
   const [showGraph, setShowGraph] = useState(false)
 
@@ -60,7 +59,7 @@ export default function App() {
 
       {/* the landing IS the chat — solo-mode users start here, no gauntlet */}
       <main className="min-h-0 flex-1">
-        <ChatSurface campaign={campaign === '' ? undefined : campaign} />
+        <ChatSurface />
       </main>
 
       <Drawer open={open === 'models'} title="Models" onClose={() => setOpen('none')}>
@@ -88,22 +87,6 @@ export default function App() {
               Setup
             </h3>
             <SetupWizard />
-          </section>
-          <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
-              Adventure campaign
-            </h3>
-            <label className="text-sm text-fg-muted" htmlFor="campaign-path">
-              Campaign YAML for 🎲 (e.g.
-              ~/Scripts/Maxim/scenarios/campaigns/darkened_cavern_v1.yaml)
-            </label>
-            <input
-              id="campaign-path"
-              className="mt-1 w-full rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
-              placeholder="/path/to/campaign.yaml"
-              value={campaign}
-              onChange={(e) => setCampaign(e.target.value)}
-            />
           </section>
           <section>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
