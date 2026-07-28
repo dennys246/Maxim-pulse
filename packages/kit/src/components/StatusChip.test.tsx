@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { MockFacade } from '../facade'
+import { MockFacade, wireEvent } from '../facade'
 import { StatusChip } from './StatusChip'
 
 test('renders the label', () => {
@@ -18,9 +18,9 @@ test('MockFacade event stream delivers ConsoleEvent envelopes by kind', () => {
   const facade = new MockFacade()
   const seen: string[] = []
   const unsubscribe = facade.on('heartbeat', (event) => seen.push(event.kind))
-  facade.emit({ kind: 'heartbeat', ts: 1 })
-  facade.emit({ kind: 'other', ts: 2 })
+  facade.emit(wireEvent('heartbeat'))
+  facade.emit(wireEvent('other'))
   unsubscribe()
-  facade.emit({ kind: 'heartbeat', ts: 3 })
+  facade.emit(wireEvent('heartbeat'))
   expect(seen).toEqual(['heartbeat'])
 })
