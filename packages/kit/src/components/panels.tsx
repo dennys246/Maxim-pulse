@@ -15,6 +15,8 @@ const notHeartbeat = (event: ConsoleEvent) => event.kind !== 'heartbeat'
 // Provisional memory-ish kinds (terminal subsystems lowercased + api.on names).
 const MEMORY_KINDS = new Set(['hippocampus', 'nac', 'learn', 'memory_capture'])
 const isMemoryEvent = (event: ConsoleEvent) => MEMORY_KINDS.has(event.kind.toLowerCase())
+// 'thinking' is provisional; expected to pin as 'deliberation' (sim_log
+// subsystem) in the EVENT seam's v2 envelope — one-line swap on regeneration.
 const isThinking = (event: ConsoleEvent) => event.kind === 'thinking'
 
 export function ActivityPanel() {

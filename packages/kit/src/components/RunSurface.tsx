@@ -10,7 +10,7 @@ import { Panel, Row, Stack } from '../design/primitives'
  * Adventure/Talk/Rest, the Console adds headless modes. This MVP starts a
  * run and shows the accept (session id · status); the full panel IA
  * (narrative bright / bio dim, thinking panel, DisplayExtension-style mode
- * panels over the event stream) lands with the Phase-3 api.on() bridge —
+ * panels over the event stream) lands with the EVENT seam's /ws bridge —
  * EventClient's transport is already in place for it.
  */
 export interface RunSurfaceProps {
