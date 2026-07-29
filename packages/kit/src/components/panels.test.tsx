@@ -71,3 +71,31 @@ test('ThinkingPanel falls back to message when a record carries no reasoning tex
   expect(panel).toHaveTextContent('deliberation complete after 3 cycle(s)')
   expect(panel).toHaveTextContent('complete')
 })
+
+test('ActivityPanel collapses consecutive duplicates with a count (the 3x percept)', () => {
+  const facade = new MockFacade()
+  withStream(facade, <ActivityPanel />)
+  act(() => {
+    // pymaxim logs the same percept from the factory AND each source
+    facade.emit(wireEvent('percept', { message: '👁️ [cli] let’s go on an adventure' }))
+    facade.emit(wireEvent('percept', { message: '👁️ [cli] let’s go on an adventure' }))
+    facade.emit(wireEvent('percept', { message: '👁️ [cli] let’s go on an adventure' }))
+    facade.emit(wireEvent('thought', { message: '💭 deliberation skipped' }))
+  })
+  const rows = screen.getByTestId('activity-panel').querySelectorAll('li')
+  expect(rows).toHaveLength(2)
+  expect(rows[0]).toHaveTextContent('×3')
+  expect(rows[1]).toHaveTextContent('deliberation skipped')
+  expect(rows[1]).not.toHaveTextContent('×')
+})
+
+test('ActivityPanel does not merge non-adjacent duplicates', () => {
+  const facade = new MockFacade()
+  withStream(facade, <ActivityPanel />)
+  act(() => {
+    facade.emit(wireEvent('nac', { message: 'reward +0.5' }))
+    facade.emit(wireEvent('hippocampus', { message: 'captured' }))
+    facade.emit(wireEvent('nac', { message: 'reward +0.5' }))
+  })
+  expect(screen.getByTestId('activity-panel').querySelectorAll('li')).toHaveLength(3)
+})
