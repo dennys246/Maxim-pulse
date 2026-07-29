@@ -1,16 +1,14 @@
-import { useState } from 'react'
-import type { RunRequest } from '../facade/types'
+import { useEffect, useState } from 'react'
+import { useFacade } from '../facade/context'
+import type { CampaignInfo, RunRequest } from '../facade/types'
 
 /**
- * AdventureLauncher — the 🎲 popup: pick a campaign or describe one.
+ * AdventureLauncher — the 🎲 popup: pick a campaign the server offers, or
+ * describe a premise and let Maxim imagine one.
  *
- * Today: a campaign YAML path launches for real; the "describe an adventure"
- * idea rides RunRequest.input (the `--sim "…"` precedent) and the server
- * answers 422 until the generative-adventure seam lands — ChatSurface surfaces
- * that detail as a gentle line, so this UI is contract-honest either way.
- *
- * When pymaxim ships the CAMPAIGNS listing seam, the path input upgrades to a
- * dropdown of every available campaign (this component is where it lands).
+ * Both paths are live: `GET /api/campaigns` lists what the server can run
+ * (the shell never types paths), and `mode="adventure"` accepts EXACTLY ONE of
+ * `campaign` (an authored YAML) or `input` (a free-text premise).
  */
 export function AdventureLauncher({
   open,
@@ -21,18 +19,41 @@ export function AdventureLauncher({
   onClose: () => void
   onLaunch: (request: RunRequest) => void
 }) {
-  const [campaign, setCampaign] = useState('')
+  const facade = useFacade()
+  const [campaigns, setCampaigns] = useState<CampaignInfo[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [chosen, setChosen] = useState('')
   const [idea, setIdea] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    facade
+      .listCampaigns()
+      .then((response) => {
+        if (alive) setCampaigns(response.campaigns ?? [])
+      })
+      .catch((error: unknown) => {
+        if (alive) setLoadError(error instanceof Error ? error.message : String(error))
+      })
+    return () => {
+      alive = false
+    }
+  }, [facade, open])
+
   if (!open) return null
 
-  const canLaunch = campaign.trim() !== '' || idea.trim() !== ''
+  // The server requires exactly one — mirror that so a doomed request is
+  // impossible rather than merely reported.
+  const hasCampaign = chosen !== ''
+  const hasIdea = idea.trim() !== ''
+  const canLaunch = hasCampaign !== hasIdea
+
   const launch = () => {
-    const path = campaign.trim()
-    const ideaText = idea.trim()
     onLaunch({
       mode: 'adventure',
-      campaign: path === '' ? null : path,
-      input: ideaText === '' ? null : ideaText,
+      campaign: hasCampaign ? chosen : null,
+      input: hasIdea ? idea.trim() : null,
     })
     onClose()
   }
@@ -62,15 +83,34 @@ export function AdventureLauncher({
         </div>
 
         <label className="text-sm text-fg-muted" htmlFor="launcher-campaign">
-          Play a campaign (YAML path — a picker arrives with the campaign-list seam)
+          Play a campaign
         </label>
-        <input
+        <select
           id="launcher-campaign"
           className="mt-1 w-full rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
-          placeholder="~/Scripts/Maxim/scenarios/campaigns/darkened_cavern_v1.yaml"
-          value={campaign}
-          onChange={(e) => setCampaign(e.target.value)}
-        />
+          value={chosen}
+          disabled={hasIdea}
+          onChange={(event) => setChosen(event.target.value)}
+        >
+          <option value="">
+            {campaigns == null
+              ? loadError == null
+                ? 'Loading campaigns…'
+                : 'Campaigns unavailable'
+              : campaigns.length === 0
+                ? 'No campaigns found'
+                : 'Choose a campaign…'}
+          </option>
+          {campaigns?.map((campaign) => (
+            <option key={campaign.path} value={campaign.path}>
+              {campaign.name}
+              {campaign.source === 'user' ? ' (yours)' : ''}
+            </option>
+          ))}
+        </select>
+        {loadError != null && (
+          <p className="mt-1 text-xs text-err">Couldn’t list campaigns: {loadError}</p>
+        )}
 
         <p className="my-3 text-center text-xs text-fg-muted">— or —</p>
 
@@ -83,10 +123,14 @@ export function AdventureLauncher({
           className="mt-1 w-full rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
           placeholder="A heist on a sky-fortress during a lightning storm…"
           value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          disabled={hasCampaign}
+          onChange={(event) => setIdea(event.target.value)}
         />
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex items-center justify-end gap-2">
+          {hasCampaign && hasIdea && (
+            <p className="mr-auto text-xs text-fg-muted">Pick one: a campaign or a premise.</p>
+          )}
           <button
             className="rounded-panel border border-edge bg-surface px-3 py-1 text-sm text-fg"
             onClick={onClose}

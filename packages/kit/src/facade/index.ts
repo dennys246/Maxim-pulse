@@ -1,4 +1,6 @@
 export type {
+  CampaignInfo,
+  CampaignsResponse,
   CloudSetupRequest,
   ConsoleEvent,
   DiagnoseResponse,

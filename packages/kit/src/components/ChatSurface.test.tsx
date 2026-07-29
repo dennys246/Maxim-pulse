@@ -20,57 +20,77 @@ function renderChat(facade: MockFacade) {
 const say = (kind: 'user' | 'response', text: string) =>
   wireEvent(kind, { tier: 'clean', message: text, data: { text } })
 
-test('talk 501 renders the gentle pending line, not an error', async () => {
+test('talk renders the reply returned by the run', async () => {
   const facade = new MockFacade()
-  facade.run = vi
-    .fn()
-    .mockRejectedValue(new FacadeError(501, 'Seam not yet implemented', '/api/run'))
+  facade.replyText = 'I remember the cavern.'
   renderChat(facade)
   await userEvent.type(screen.getByLabelText('Say something to Maxim'), 'hello there')
   await userEvent.click(screen.getByLabelText('Send'))
   expect(screen.getByText(/you ·/)).toBeInTheDocument()
   expect(screen.getByText('hello there')).toBeInTheDocument()
-  expect(await screen.findByText(/talk mode is still landing in pymaxim/)).toBeInTheDocument()
+  expect(await screen.findByText('I remember the cavern.')).toBeInTheDocument()
   expect(screen.queryByText(/Something went wrong/)).not.toBeInTheDocument()
 })
 
-test('🎲 opens the launcher; a campaign path launches and reports the run id', async () => {
+test('the reply is not doubled when it arrives BOTH synchronously and on the stream', async () => {
+  const facade = new MockFacade()
+  facade.replyText = 'Only once, please.'
+  renderChat(facade)
+  await userEvent.type(screen.getByLabelText('Say something to Maxim'), 'hi')
+  await userEvent.click(screen.getByLabelText('Send'))
+  expect(await screen.findByText('Only once, please.')).toBeInTheDocument()
+  act(() => facade.emit(say('response', 'Only once, please.')))
+  expect(screen.getAllByText('Only once, please.')).toHaveLength(1)
+})
+
+test('a 501 mode (sim/rest) still renders as pending', async () => {
+  const facade = new MockFacade()
+  facade.run = vi
+    .fn()
+    .mockRejectedValue(new FacadeError(501, 'Seam not yet implemented', '/api/run'))
+  renderChat(facade)
+  await userEvent.click(screen.getByLabelText('Rest'))
+  expect(await screen.findByText(/rest isn’t available yet/)).toBeInTheDocument()
+})
+
+test('🎲 lists the server’s campaigns and launches the chosen one', async () => {
   const facade = new MockFacade()
   renderChat(facade)
   await userEvent.click(screen.getByLabelText('Start Adventure'))
-  await userEvent.type(screen.getByLabelText(/Play a campaign/), '/tmp/darkened_cavern_v1.yaml')
+  const picker = await screen.findByLabelText(/Play a campaign/)
+  await userEvent.selectOptions(picker, '/campaigns/darkened_cavern_v1.yaml')
   await userEvent.click(screen.getByRole('button', { name: 'Begin' }))
   expect(await screen.findByText(/Adventure started · run mock-session/)).toBeInTheDocument()
   expect(facade.requests).toContainEqual({
     endpoint: '/api/run',
-    body: { mode: 'adventure', campaign: '/tmp/darkened_cavern_v1.yaml', input: null },
+    body: { mode: 'adventure', campaign: '/campaigns/darkened_cavern_v1.yaml', input: null },
   })
 })
 
-test('launcher Begin is disabled with neither a campaign nor an idea', async () => {
-  renderChat(new MockFacade())
-  await userEvent.click(screen.getByLabelText('Start Adventure'))
-  expect(screen.getByRole('button', { name: 'Begin' })).toBeDisabled()
-})
-
-test('an idea-only launch sends input and renders the pending-seam line on 422', async () => {
+test('a premise-only launch sends input for Maxim to imagine', async () => {
   const facade = new MockFacade()
-  const run = vi
-    .fn()
-    .mockRejectedValue(new FacadeError(422, "mode='adventure' requires 'campaign'", '/api/run'))
-  facade.run = run
   renderChat(facade)
   await userEvent.click(screen.getByLabelText('Start Adventure'))
   await userEvent.type(screen.getByLabelText(/Describe an adventure/), 'A heist on a sky-fortress')
   await userEvent.click(screen.getByRole('button', { name: 'Begin' }))
-  expect(run).toHaveBeenCalledWith({
-    mode: 'adventure',
-    campaign: null,
-    input: 'A heist on a sky-fortress',
+  expect(facade.requests).toContainEqual({
+    endpoint: '/api/run',
+    body: { mode: 'adventure', campaign: null, input: 'A heist on a sky-fortress' },
   })
-  expect(
-    await screen.findByText(/can’t imagine an adventure from a description yet/),
-  ).toBeInTheDocument()
+})
+
+test('the launcher enforces the server’s exactly-one rule', async () => {
+  const facade = new MockFacade()
+  renderChat(facade)
+  await userEvent.click(screen.getByLabelText('Start Adventure'))
+  expect(screen.getByRole('button', { name: 'Begin' })).toBeDisabled()
+  await userEvent.selectOptions(
+    await screen.findByLabelText(/Play a campaign/),
+    '/campaigns/darkened_cavern_v1.yaml',
+  )
+  expect(screen.getByRole('button', { name: 'Begin' })).toBeEnabled()
+  // choosing a campaign locks the premise box, so both can never be sent
+  expect(screen.getByLabelText(/Describe an adventure/)).toBeDisabled()
 })
 
 test('a RESPONSE record renders as Maxim speaking', async () => {

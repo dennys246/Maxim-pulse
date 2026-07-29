@@ -1,4 +1,5 @@
 import type {
+  CampaignsResponse,
   CloudSetupRequest,
   ConsoleEvent,
   DiagnoseResponse,
@@ -48,6 +49,17 @@ export class MockFacade implements FacadeClient {
     preferences: [],
   }
   probeResult: ProbeResult = { status: 'ok', outcome: 'ok', message: 'mock probe ok' }
+  campaigns: CampaignsResponse = {
+    campaigns: [
+      {
+        name: 'The Darkened Cavern',
+        path: '/campaigns/darkened_cavern_v1.yaml',
+        source: 'repo',
+        goal: 'dm:the_darkened_cavern',
+      },
+    ],
+    searched: ['/campaigns'],
+  }
   requests: Array<{ endpoint: string; body: unknown }> = []
 
   async listModels(): Promise<ModelsResponse> {
@@ -73,13 +85,25 @@ export class MockFacade implements FacadeClient {
     return { ok: true, placement: 'cloud', detail: 'mock cloud profile written' }
   }
 
+  async listCampaigns(): Promise<CampaignsResponse> {
+    return this.campaigns
+  }
+
   async recall(): Promise<RecallResponse> {
     return this.recallSnapshot
   }
 
+  /** What a mocked talk turn replies with. */
+  replyText: string | null = null
+
   async run(request: RunRequest): Promise<RunAccepted> {
     this.requests.push({ endpoint: '/api/run', body: request })
-    return { session_id: 'mock-session', mode: request.mode, status: 'started' }
+    return {
+      session_id: 'mock-session',
+      mode: request.mode,
+      status: 'started',
+      reply: request.mode === 'talk' ? this.replyText : null,
+    }
   }
 
   on(kind: string, handler: (event: ConsoleEvent) => void): () => void {
