@@ -57,20 +57,39 @@ test('ThinkingPanel shows the REASONING (data.text), not the cycle counter in me
   expect(screen.getByTitle('2 episodes: the last cavern')).toBeInTheDocument()
 })
 
-test('ThinkingPanel falls back to message when a record carries no reasoning text', () => {
+test('status-only records are tucked behind a toggle so reasoning is not buried', async () => {
+  // Four emitters write `deliberation`; only sim_deliberation_update/_end carry
+  // reasoning. Status lines (contemplation, convergence) used to crowd it out.
   const facade = new MockFacade()
   withStream(facade, <ThinkingPanel />)
   act(() => {
     facade.emit(
+      wireEvent('deliberation', { message: '💭 contemplation kept original (score=0.00)' }),
+    )
+    facade.emit(wireEvent('deliberation', { message: 'deliberation converged after 2 cycles' }))
+    facade.emit(
       wireEvent('deliberation', {
-        message: 'deliberation complete after 3 cycle(s)',
-        data: { completed: true },
+        message: 'deliberation cycle 1/3',
+        data: { text: 'The cave entrance is wide and well-lit.', cycle: 1 },
       }),
     )
   })
-  const panel = screen.getByTestId('thinking-panel')
-  expect(panel).toHaveTextContent('deliberation complete after 3 cycle(s)')
-  expect(panel).toHaveTextContent('complete')
+  // the reasoning shows; the two status lines are counted, not shown
+  expect(screen.getByTestId('thinking-panel')).toHaveTextContent('The cave entrance is wide')
+  expect(screen.getByTestId('thinking-panel')).not.toHaveTextContent('contemplation kept original')
+  expect(screen.getByLabelText('Show deliberation status lines')).toHaveTextContent(
+    '2 status lines',
+  )
+
+  await userEvent.click(screen.getByLabelText('Show deliberation status lines'))
+  expect(screen.getByTestId('thinking-panel')).toHaveTextContent('contemplation kept original')
+})
+
+test('a turn with only status lines says so instead of showing an empty panel', () => {
+  const facade = new MockFacade()
+  withStream(facade, <ThinkingPanel />)
+  act(() => facade.emit(wireEvent('deliberation', { message: 'max cycles (3) reached' })))
+  expect(screen.getByText(/No reasoning text yet/)).toBeInTheDocument()
 })
 
 test('ActivityPanel collapses consecutive duplicates with a count (the 3x percept)', () => {
@@ -116,8 +135,8 @@ test('ActivityPanel: muting a noisy kind reveals the record it was burying', asy
   // the interesting record is present but buried among 40 idle lines
   expect(screen.getByTestId('activity-panel')).toHaveTextContent('internet_search')
   const kinds = screen.getByTestId('activity-kinds')
-  expect(kinds).toHaveTextContent('hippocampus ×20')
-  expect(kinds).toHaveTextContent('motor ×1')
+  expect(kinds).toHaveTextContent('Memories ×20') // glossary label; [hippocampus] still prints on each line
+  expect(kinds).toHaveTextContent('Actions ×1')
 
   await userEvent.click(screen.getByLabelText('Mute hippocampus'))
   await userEvent.click(screen.getByLabelText('Mute scn'))
@@ -125,5 +144,5 @@ test('ActivityPanel: muting a noisy kind reveals the record it was burying', asy
   expect(rows).toHaveLength(1)
   expect(rows[0]).toHaveTextContent('internet_search')
   // muted kinds still report their counts — nothing vanishes silently
-  expect(screen.getByLabelText('Show hippocampus')).toHaveTextContent('hippocampus ×20')
+  expect(screen.getByLabelText('Show hippocampus')).toHaveTextContent('Memories ×20')
 })
