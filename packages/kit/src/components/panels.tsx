@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ConsoleEvent } from '../facade/types'
 import { useEvents } from '../facade/eventClient'
 import { MemoryView } from './MemoryView'
@@ -39,20 +40,73 @@ function collapseRepeats(events: ConsoleEvent[]): Array<{ event: ConsoleEvent; c
   return rows
 }
 
+/**
+ * ActivityPanel — the bio-subsystem log, with per-kind muting.
+ *
+ * Muting exists because the idle loop is LOUD: between turns the agent emits a
+ * hippocampus/scn pair about twice a second, which floods any fixed window and
+ * flushes out the records that matter (a tool call, an NAc update). The two
+ * kinds alternate, so consecutive-collapse can't help — filtering can. This
+ * mirrors the terminal display's own channel filtering rather than inventing a
+ * cleverer heuristic: the user decides what's noise, and the chip keeps showing
+ * the count so nothing disappears without saying so.
+ */
 export function ActivityPanel() {
-  const events = useEvents({ match: isBioTier, limit: 50 })
+  const events = useEvents({ match: isBioTier, limit: 200 })
+  const [muted, setMuted] = useState<ReadonlySet<string>>(new Set())
+
   if (events.length === 0)
     return <p className="text-xs text-bio-fg">Quiet — activity appears as Maxim works.</p>
+
+  const counts = new Map<string, number>()
+  for (const event of events) counts.set(event.kind, (counts.get(event.kind) ?? 0) + 1)
+  const kinds = [...counts.entries()].sort((a, b) => b[1] - a[1])
+  const visible = events.filter((event) => !muted.has(event.kind))
+
+  const toggle = (kind: string) =>
+    setMuted((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(kind)) next.add(kind)
+      return next
+    })
+
   return (
-    <ul data-testid="activity-panel" className="flex flex-col gap-0.5">
-      {collapseRepeats(events).map(({ event, count }, index) => (
-        <li key={index} className="font-mono text-xs text-bio-fg">
-          <span className="text-fg-muted">[{event.kind}]</span> {event.message}
-          {event.agent != null && <span className="text-fg-muted"> · {event.agent}</span>}
-          {count > 1 && <span className="ml-1 text-fg-muted">×{count}</span>}
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-1">
+      <div data-testid="activity-kinds" className="flex flex-wrap gap-1">
+        {kinds.map(([kind, count]) => {
+          const isMuted = muted.has(kind)
+          return (
+            <button
+              key={kind}
+              aria-label={`${isMuted ? 'Show' : 'Mute'} ${kind}`}
+              aria-pressed={!isMuted}
+              title={isMuted ? `${kind} hidden — click to show` : `Hide ${kind}`}
+              className={`rounded-sm border px-1 font-mono text-[10px] ${
+                isMuted
+                  ? 'border-edge text-fg-muted line-through opacity-60'
+                  : 'border-edge text-bio-fg'
+              }`}
+              onClick={() => toggle(kind)}
+            >
+              {kind} ×{count}
+            </button>
+          )
+        })}
+      </div>
+      {visible.length === 0 ? (
+        <p className="text-xs text-fg-muted">Everything here is muted.</p>
+      ) : (
+        <ul data-testid="activity-panel" className="flex flex-col gap-0.5">
+          {collapseRepeats(visible).map(({ event, count }, index) => (
+            <li key={index} className="font-mono text-xs text-bio-fg">
+              <span className="text-fg-muted">[{event.kind}]</span> {event.message}
+              {event.agent != null && <span className="text-fg-muted"> · {event.agent}</span>}
+              {count > 1 && <span className="ml-1 text-fg-muted">×{count}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

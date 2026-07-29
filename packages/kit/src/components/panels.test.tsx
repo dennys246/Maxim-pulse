@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { FacadeProvider, MockFacade, wireEvent } from '../facade'
 import { EventClientProvider } from '../facade/eventClient'
 import { ActivityPanel, ThinkingPanel } from './panels'
@@ -98,4 +99,31 @@ test('ActivityPanel does not merge non-adjacent duplicates', () => {
     facade.emit(wireEvent('nac', { message: 'reward +0.5' }))
   })
   expect(screen.getByTestId('activity-panel').querySelectorAll('li')).toHaveLength(3)
+})
+
+test('ActivityPanel: muting a noisy kind reveals the record it was burying', async () => {
+  const facade = new MockFacade()
+  withStream(facade, <ActivityPanel />)
+  act(() => {
+    // the idle loop: a hippocampus/scn pair ~2x per second, alternating so
+    // consecutive-collapse cannot help
+    for (let i = 0; i < 20; i++) {
+      facade.emit(wireEvent('hippocampus', { message: 'Captured: observation (salience=0.50)' }))
+      facade.emit(wireEvent('scn', { message: `Registered ${i}a2b in circadian=0.91` }))
+    }
+    facade.emit(wireEvent('motor', { message: '❌ [FAIL] internet_search: timeout' }))
+  })
+  // the interesting record is present but buried among 40 idle lines
+  expect(screen.getByTestId('activity-panel')).toHaveTextContent('internet_search')
+  const kinds = screen.getByTestId('activity-kinds')
+  expect(kinds).toHaveTextContent('hippocampus ×20')
+  expect(kinds).toHaveTextContent('motor ×1')
+
+  await userEvent.click(screen.getByLabelText('Mute hippocampus'))
+  await userEvent.click(screen.getByLabelText('Mute scn'))
+  const rows = screen.getByTestId('activity-panel').querySelectorAll('li')
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toHaveTextContent('internet_search')
+  // muted kinds still report their counts — nothing vanishes silently
+  expect(screen.getByLabelText('Show hippocampus')).toHaveTextContent('hippocampus ×20')
 })
