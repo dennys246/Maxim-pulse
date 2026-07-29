@@ -146,3 +146,17 @@ test('ActivityPanel: muting a noisy kind reveals the record it was burying', asy
   // muted kinds still report their counts — nothing vanishes silently
   expect(screen.getByLabelText('Show hippocampus')).toHaveTextContent('Memories ×20')
 })
+
+test('the identity frame never leaks into the activity log', () => {
+  // It opens every connection and bypasses SubscribeFrame filters, so a naive
+  // consumer would render connection metadata as a bio record.
+  const facade = new MockFacade()
+  withStream(facade, <ActivityPanel />)
+  act(() => {
+    facade.emit(wireEvent('identity', { tier: 'clean', message: 'pymaxim 1.0.3 (contract 0.2.0)' }))
+    facade.emit(wireEvent('nac', { message: 'reward +0.5' }))
+  })
+  const panel = screen.getByTestId('activity-panel')
+  expect(panel).toHaveTextContent('reward +0.5')
+  expect(panel).not.toHaveTextContent('pymaxim 1.0.3')
+})

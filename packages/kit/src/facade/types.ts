@@ -26,6 +26,8 @@ export type SetupResult = components['schemas']['SetupResult']
 export type StoryMemory = components['schemas']['StoryMemory']
 export type Preference = components['schemas']['Preference']
 export type RecallResponse = components['schemas']['RecallResponse']
+export type IdentityResponse = components['schemas']['IdentityResponse']
+export type SeamStatus = components['schemas']['SeamStatus']
 export type CampaignInfo = components['schemas']['CampaignInfo']
 export type CampaignsResponse = components['schemas']['CampaignsResponse']
 export type RunRequest = components['schemas']['RunRequest']
@@ -49,6 +51,8 @@ export interface FacadeClient {
   setupMesh(request: MeshSetupRequest): Promise<SetupResult>
   /** POST /api/setup/cloud */
   setupCloud(request: CloudSetupRequest): Promise<SetupResult>
+  /** GET /api/identity — which backend am I talking to, and which seams are live. */
+  identity(): Promise<IdentityResponse>
   /** GET /api/campaigns — what the shell offers in the Adventure picker. */
   listCampaigns(): Promise<CampaignsResponse>
   /** GET /api/recall */

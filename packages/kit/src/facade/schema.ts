@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which backend is this? */
+        get: operations["get_identity_api_identity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/models": {
         parameters: {
             query?: never;
@@ -286,6 +303,50 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * IdentityResponse
+         * @description Self-describing backend identity.
+         *
+         *     Exists because a console could not previously answer "which build is this?"
+         *     — and the answer changes silently. pymaxim is typically installed EDITABLE,
+         *     so `maxim serve` follows whatever git branch is checked out: switch to a
+         *     branch predating a seam and that seam quietly vanishes from the UI. Add a
+         *     stale `serve` process still holding the port and the console can be talking
+         *     to code that no longer exists on disk.
+         *
+         *     Every field here is something a debugging session would otherwise have to
+         *     guess. Also emitted as the FIRST /ws event on connect (kind="identity"), so
+         *     a client knows what it is attached to before any other event arrives.
+         */
+        IdentityResponse: {
+            /** Contract Version */
+            contract_version: string;
+            /** Git Branch */
+            git_branch?: string | null;
+            /** Git Sha */
+            git_sha?: string | null;
+            /** Package Version */
+            package_version: string;
+            /**
+             * Python Version
+             * @default
+             */
+            python_version: string;
+            /** Seams */
+            seams?: components["schemas"]["SeamStatus"][];
+            /** Ui Dist */
+            ui_dist?: string | null;
+            /** Ui Manifest */
+            ui_manifest?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Ui Source
+             * @default none
+             * @enum {string}
+             */
+            ui_source: "flag" | "config" | "packaged" | "none";
+        };
         /** MeshSetupRequest */
         MeshSetupRequest: {
             /** Api Key */
@@ -435,6 +496,18 @@ export interface components {
              */
             mode: "talk" | "adventure" | "sim" | "rest";
         };
+        /**
+         * SeamStatus
+         * @description One console surface and whether it is live here.
+         */
+        SeamStatus: {
+            /** Detail */
+            detail?: string | null;
+            /** Live */
+            live: boolean;
+            /** Name */
+            name: string;
+        };
         /** SetupResult */
         SetupResult: {
             /** Detail */
@@ -573,6 +646,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscribeFrame"];
+                };
+            };
+        };
+    };
+    get_identity_api_identity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityResponse"];
                 };
             };
         };

@@ -1,4 +1,5 @@
 import {
+  BackendChip,
   ChatSurface,
   ConnectionTest,
   CORE_PANELS,
@@ -49,7 +50,12 @@ function Shell() {
   return (
     <div className="flex h-screen flex-col bg-bg font-sans text-fg">
       <TopBar
-        left={<LiveStatusChip />}
+        left={
+          <>
+            <LiveStatusChip />
+            <BackendChip />
+          </>
+        }
         right={
           <>
             <TopBarButton label="Models" onClick={() => toggleSurface('models')}>

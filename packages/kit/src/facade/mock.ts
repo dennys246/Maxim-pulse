@@ -1,5 +1,7 @@
+import { CONTRACT_VERSION } from './contractVersion'
 import type {
   CampaignsResponse,
+  IdentityResponse,
   CloudSetupRequest,
   ConsoleEvent,
   DiagnoseResponse,
@@ -49,6 +51,19 @@ export class MockFacade implements FacadeClient {
     preferences: [],
   }
   probeResult: ProbeResult = { status: 'ok', outcome: 'ok', message: 'mock probe ok' }
+  backend: IdentityResponse = {
+    package_version: '1.0.3',
+    contract_version: CONTRACT_VERSION,
+    python_version: '3.12.0',
+    git_branch: 'main',
+    git_sha: 'abc1234',
+    ui_source: 'flag',
+    seams: [
+      { name: 'talk', live: true, detail: null },
+      { name: 'adventure', live: true, detail: null },
+      { name: 'sim', live: false, detail: 'CLI only' },
+    ],
+  }
   campaigns: CampaignsResponse = {
     campaigns: [
       {
@@ -83,6 +98,10 @@ export class MockFacade implements FacadeClient {
   async setupCloud(request: CloudSetupRequest): Promise<SetupResult> {
     this.requests.push({ endpoint: '/api/setup/cloud', body: request })
     return { ok: true, placement: 'cloud', detail: 'mock cloud profile written' }
+  }
+
+  async identity(): Promise<IdentityResponse> {
+    return this.backend
   }
 
   async listCampaigns(): Promise<CampaignsResponse> {
