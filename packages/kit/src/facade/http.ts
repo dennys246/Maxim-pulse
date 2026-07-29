@@ -1,5 +1,6 @@
 import { WsEventSource, type WsFactory } from './events'
 import type {
+  CampaignsResponse,
   CloudSetupRequest,
   ConsoleEvent,
   DiagnoseResponse,
@@ -107,6 +108,10 @@ export class HttpFacade implements FacadeClient {
 
   setupCloud(request: CloudSetupRequest): Promise<SetupResult> {
     return this.request('POST', '/api/setup/cloud', request)
+  }
+
+  listCampaigns(): Promise<CampaignsResponse> {
+    return this.request('GET', '/api/campaigns')
   }
 
   recall(): Promise<RecallResponse> {

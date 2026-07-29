@@ -70,6 +70,12 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   /** Utterances echoed locally, awaiting their USER record so we can drop it. */
   const pendingEcho = useRef<string[]>([])
+  /**
+   * Replies already shown. talk delivers each reply TWICE — synchronously as
+   * RunAccepted.reply and on the stream as a RESPONSE record — and either can
+   * arrive first (or alone, if the socket dropped). First one wins.
+   */
+  const shownReplies = useRef<string[]>([])
 
   useEffect(() => {
     // optional-call: jsdom has no scrollTo
@@ -79,6 +85,17 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const push = (line: Omit<ChatLine, 'id'>) =>
     setLines((prev) => [...prev, { ...line, id: nextId.current++ }])
 
+  /** True if this reply text has not been rendered yet (and claims it). */
+  const claimReply = (text: string) => {
+    const at = shownReplies.current.indexOf(text)
+    if (at !== -1) {
+      shownReplies.current.splice(at, 1) // the other delivery path already showed it
+      return false
+    }
+    shownReplies.current.push(text)
+    return true
+  }
+
   // The transcript subscribes to the hub DIRECTLY and keeps its own append-only
   // state — never useEvents, whose window caps at `limit` and rebuilds from a
   // 200-event ring shared with bio-tier noise (a long session would silently
@@ -87,6 +104,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
     () =>
       hub.listen((event) => {
         if (event.kind === REPLY_KIND) {
+          if (!claimReply(event.message)) return
           push({ role: 'maxim', text: event.message })
         } else if (event.kind === UTTERANCE_KIND) {
           const echoed = pendingEcho.current.indexOf(event.message)
@@ -108,8 +126,13 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
       if (request.mode === 'adventure') {
         push({
           role: 'system',
-          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}. Narration still prints in the maxim serve terminal — pymaxim's DM narrates outside the record stream (flagged). Thinking and bio activity are live in the rails.`,
+          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}. Narration prints in the maxim serve terminal — the DM narrates outside the record stream (flagged to pymaxim); thinking and bio activity are live in the rails.`,
         })
+      } else if (request.mode === 'talk') {
+        const reply = accepted.reply
+        if (reply != null && reply !== '' && claimReply(reply)) {
+          push({ role: 'maxim', text: reply })
+        }
       } else {
         push({
           role: 'system',
@@ -120,21 +143,10 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
       if (error instanceof FacadeError && error.status === 501) {
         push({
           role: 'system',
-          text:
-            request.mode === 'talk'
-              ? 'Live conversation isn’t wired up on this server yet (the talk mode is still landing in pymaxim). 🎲 Adventure works today.'
-              : `${request.mode} isn’t available yet: ${error.detail}`,
+          text: `${request.mode} isn’t available yet: ${error.detail}`,
         })
       } else if (error instanceof FacadeError && error.status === 422) {
-        if (request.mode === 'adventure' && request.campaign == null && request.input != null) {
-          // idea-only launch: the generative-adventure seam hasn't landed yet
-          push({
-            role: 'system',
-            text: 'Maxim can’t imagine an adventure from a description yet — that seam is on its way. Pick a campaign YAML in the 🎲 launcher meanwhile.',
-          })
-        } else {
-          push({ role: 'system', text: `Couldn’t start: ${error.detail}` })
-        }
+        push({ role: 'system', text: `Couldn’t start: ${error.detail}` })
       } else {
         push({
           role: 'system',

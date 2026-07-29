@@ -26,6 +26,8 @@ export type SetupResult = components['schemas']['SetupResult']
 export type StoryMemory = components['schemas']['StoryMemory']
 export type Preference = components['schemas']['Preference']
 export type RecallResponse = components['schemas']['RecallResponse']
+export type CampaignInfo = components['schemas']['CampaignInfo']
+export type CampaignsResponse = components['schemas']['CampaignsResponse']
 export type RunRequest = components['schemas']['RunRequest']
 export type RunAccepted = components['schemas']['RunAccepted']
 /** The /ws stream envelope (exposed at GET /api/events/envelope for type-gen). */
@@ -47,6 +49,8 @@ export interface FacadeClient {
   setupMesh(request: MeshSetupRequest): Promise<SetupResult>
   /** POST /api/setup/cloud */
   setupCloud(request: CloudSetupRequest): Promise<SetupResult>
+  /** GET /api/campaigns — what the shell offers in the Adventure picker. */
+  listCampaigns(): Promise<CampaignsResponse>
   /** GET /api/recall */
   recall(): Promise<RecallResponse>
   /** POST /api/run */
