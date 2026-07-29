@@ -129,3 +129,32 @@ test('bio-tier noise never reaches the transcript', async () => {
   expect(screen.queryByText(/tool:choose/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Captured/)).not.toBeInTheDocument()
 })
+
+test('an identical reply in a LATER turn is not swallowed as a duplicate', async () => {
+  // Regression: pymaxim's "(no reply — …)" placeholder is byte-identical every
+  // time it fires. A global dedupe list dropped every occurrence after the
+  // first, so a silent turn looked like a lost message.
+  const placeholder = '(no reply — the turn produced no respond/speak action)'
+  const facade = new MockFacade()
+  renderChat(facade)
+
+  await userEvent.type(screen.getByLabelText('Say something to Maxim'), 'first')
+  await userEvent.click(screen.getByLabelText('Send'))
+  act(() => facade.emit(say('response', placeholder)))
+  expect(await screen.findByText(placeholder)).toBeInTheDocument()
+
+  await userEvent.type(screen.getByLabelText('Say something to Maxim'), 'second')
+  await userEvent.click(screen.getByLabelText('Send'))
+  act(() => facade.emit(say('response', placeholder)))
+  expect(screen.getAllByText(placeholder)).toHaveLength(2)
+})
+
+test('within ONE turn the two delivery paths still collapse to a single line', async () => {
+  const facade = new MockFacade()
+  facade.replyText = 'Same message, one line.'
+  renderChat(facade)
+  await userEvent.type(screen.getByLabelText('Say something to Maxim'), 'hi')
+  await userEvent.click(screen.getByLabelText('Send'))
+  act(() => facade.emit(say('response', 'Same message, one line.')))
+  expect(screen.getAllByText('Same message, one line.')).toHaveLength(1)
+})
