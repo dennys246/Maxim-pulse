@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFacade } from '../facade/context'
+import { useEventClient } from '../facade/eventClient'
 import { FacadeError } from '../facade/http'
 import type { RunRequest } from '../facade/types'
 import { AdventureLauncher } from './AdventureLauncher'
@@ -11,15 +12,30 @@ import { AdventureLauncher } from './AdventureLauncher'
  * stays the constant center. All input rides the HANDLE seam — no
  * back-channels.
  *
- * Until pymaxim's EVENT-seam streaming bridge: talk/rest answer typed 501s
- * (rendered as gentle system lines); adventure runs for real (narrative in
- * the serve terminal).
+ * The transcript is stream-driven: `handle.talk` publishes the utterance and
+ * the reply as clean-tier records, which this surface renders (echoing the
+ * local utterance immediately and deduping its record). Requires
+ * <EventClientProvider>.
  */
 
 interface ChatLine {
+  /** Stable identity — array indices mis-key once stream lines interleave. */
+  id: number
   role: 'user' | 'maxim' | 'system'
   text: string
 }
+
+/**
+ * Conversation kinds on the wire (lowercased sim_log subsystems). `handle.talk`
+ * emits USER for the utterance and RESPONSE for the reply — the web chat echoes
+ * its own utterance locally for immediacy and dedupes the USER record.
+ *
+ * Adventure narration is NOT here: pymaxim's DM narrates through display_scene,
+ * which bypasses sim_log entirely, so SCENE/NPC/CHOICE reach no stream (flagged
+ * to pymaxim). Campaign prose stays in the serve terminal until that lands.
+ */
+const REPLY_KIND = 'response'
+const UTTERANCE_KIND = 'user'
 
 const lineStyle: Record<ChatLine['role'], string> = {
   user: 'text-fg',
@@ -39,20 +55,51 @@ export interface ChatSurfaceProps {
 // 🎲 opens the AdventureLauncher (campaign path or free-text idea).
 export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const facade = useFacade()
+  const hub = useEventClient()
   const [launcherOpen, setLauncherOpen] = useState(false)
+  const nextId = useRef(0)
   const [lines, setLines] = useState<ChatLine[]>([
-    { role: 'system', text: 'Maxim is listening. Say something, or start an 🎲 Adventure.' },
+    {
+      id: -1,
+      role: 'system',
+      text: 'Maxim is listening. Say something, or start an 🎲 Adventure.',
+    },
   ])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  /** Utterances echoed locally, awaiting their USER record so we can drop it. */
+  const pendingEcho = useRef<string[]>([])
 
   useEffect(() => {
     // optional-call: jsdom has no scrollTo
     scrollRef.current?.scrollTo?.({ top: scrollRef.current.scrollHeight })
   }, [lines])
 
-  const push = (line: ChatLine) => setLines((prev) => [...prev, line])
+  const push = (line: Omit<ChatLine, 'id'>) =>
+    setLines((prev) => [...prev, { ...line, id: nextId.current++ }])
+
+  // The transcript subscribes to the hub DIRECTLY and keeps its own append-only
+  // state — never useEvents, whose window caps at `limit` and rebuilds from a
+  // 200-event ring shared with bio-tier noise (a long session would silently
+  // lose its own opening lines).
+  useEffect(
+    () =>
+      hub.listen((event) => {
+        if (event.kind === REPLY_KIND) {
+          push({ role: 'maxim', text: event.message })
+        } else if (event.kind === UTTERANCE_KIND) {
+          const echoed = pendingEcho.current.indexOf(event.message)
+          if (echoed !== -1) {
+            pendingEcho.current.splice(echoed, 1) // our own line, already shown
+          } else {
+            push({ role: 'user', text: event.message })
+          }
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hub],
+  )
 
   const start = async (request: RunRequest) => {
     setBusy(true)
@@ -61,7 +108,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
       if (request.mode === 'adventure') {
         push({
           role: 'system',
-          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}. The narrative streams in the maxim serve terminal until the event bridge lands.`,
+          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}. Narration still prints in the maxim serve terminal — pymaxim's DM narrates outside the record stream (flagged). Thinking and bio activity are live in the rails.`,
         })
       } else {
         push({
@@ -75,7 +122,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
           role: 'system',
           text:
             request.mode === 'talk'
-              ? 'Maxim can’t hold a live conversation here yet — that arrives with the event bridge. 🎲 Adventure works today.'
+              ? 'Live conversation isn’t wired up on this server yet (the talk mode is still landing in pymaxim). 🎲 Adventure works today.'
               : `${request.mode} isn’t available yet: ${error.detail}`,
         })
       } else if (error instanceof FacadeError && error.status === 422) {
@@ -103,6 +150,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
     const text = draft.trim()
     if (text === '' || busy) return
     push({ role: 'user', text })
+    pendingEcho.current.push(text) // drop the USER record that echoes this back
     setDraft('')
     void start({ mode: 'talk', input: text })
   }
@@ -112,8 +160,8 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
       {/* conversation — scene-bright */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto bg-scene p-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
-          {lines.map((line, index) => (
-            <p key={index} className={`text-sm ${lineStyle[line.role]}`}>
+          {lines.map((line) => (
+            <p key={line.id} className={`text-sm ${lineStyle[line.role]}`}>
               {line.role === 'user' && <span className="text-fg-muted">you · </span>}
               {line.text}
             </p>
