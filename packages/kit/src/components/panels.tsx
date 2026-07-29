@@ -19,16 +19,37 @@ const isDeliberation = (event: ConsoleEvent) => event.kind === 'deliberation'
 const MEMORY_KINDS = new Set(['hippocampus', 'nac', 'learn'])
 const isMemoryEvent = (event: ConsoleEvent) => MEMORY_KINDS.has(event.kind)
 
+/**
+ * Collapse CONSECUTIVE identical records into one row with a count. Producers
+ * legitimately repeat (a percept is logged by the factory and again by each
+ * source; session-end flushes 50 near-identical promotions in ~10ms), and a
+ * one-per-line log buries the signal. Nothing is hidden — the count says how
+ * many arrived.
+ */
+function collapseRepeats(events: ConsoleEvent[]): Array<{ event: ConsoleEvent; count: number }> {
+  const rows: Array<{ event: ConsoleEvent; count: number }> = []
+  for (const event of events) {
+    const last = rows[rows.length - 1]
+    if (last != null && last.event.kind === event.kind && last.event.message === event.message) {
+      last.count += 1
+    } else {
+      rows.push({ event, count: 1 })
+    }
+  }
+  return rows
+}
+
 export function ActivityPanel() {
   const events = useEvents({ match: isBioTier, limit: 50 })
   if (events.length === 0)
     return <p className="text-xs text-bio-fg">Quiet — activity appears as Maxim works.</p>
   return (
     <ul data-testid="activity-panel" className="flex flex-col gap-0.5">
-      {events.map((event, index) => (
+      {collapseRepeats(events).map(({ event, count }, index) => (
         <li key={index} className="font-mono text-xs text-bio-fg">
           <span className="text-fg-muted">[{event.kind}]</span> {event.message}
           {event.agent != null && <span className="text-fg-muted"> · {event.agent}</span>}
+          {count > 1 && <span className="ml-1 text-fg-muted">×{count}</span>}
         </li>
       ))}
     </ul>
