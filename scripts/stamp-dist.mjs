@@ -15,6 +15,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
 
 export const TARGETS = [
   { name: 'console', dist: 'apps/console/dist', pkg: 'apps/console/package.json' },

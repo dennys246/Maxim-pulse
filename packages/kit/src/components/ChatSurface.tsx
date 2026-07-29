@@ -115,7 +115,6 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
           }
         }
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [hub],
   )
 
