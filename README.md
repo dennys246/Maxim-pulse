@@ -62,7 +62,9 @@ Each archive's root **is** the dist root — extract straight into the target di
 CI uploads both on every build and attaches them to the GitHub release when a
 `v*` tag is pushed — vendor from a pinned tag, not from `main`.
 
-**Contract stamp.** Every bundle carries `maxim-ui.json`:
+**Contract stamp.** Every bundle carries `maxim-ui.json`, written by `pnpm build`
+(not just when packaging — a bundle served straight from `dist/` via `--ui-dist`
+must be verifiable too):
 
 ```json
 { "target": "console", "app_version": "0.0.1", "contract_version": "0.1.0", "commit": "abc1234" }
