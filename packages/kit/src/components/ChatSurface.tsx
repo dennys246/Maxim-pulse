@@ -21,26 +21,32 @@ import { AdventureLauncher } from './AdventureLauncher'
 interface ChatLine {
   /** Stable identity — array indices mis-key once stream lines interleave. */
   id: number
-  role: 'user' | 'maxim' | 'system'
+  role: 'user' | 'maxim' | 'system' | 'turn'
   text: string
 }
 
 /**
- * Conversation kinds on the wire (lowercased sim_log subsystems). `handle.talk`
- * emits USER for the utterance and RESPONSE for the reply — the web chat echoes
- * its own utterance locally for immediacy and dedupes the USER record.
+ * Conversation kinds on the wire (lowercased sim_log subsystems).
  *
- * Adventure narration is NOT here: pymaxim's DM narrates through display_scene,
- * which bypasses sim_log entirely, so SCENE/NPC/CHOICE reach no stream (flagged
- * to pymaxim). Campaign prose stays in the serve terminal until that lands.
+ * talk: `handle.talk` emits USER for the utterance and RESPONSE for the reply —
+ * the chat echoes its own utterance locally for immediacy and dedupes the USER
+ * record.
+ *
+ * Adventure: `display_scene`/`display_summary` now put the DM's prose on the
+ * record stream in FULL (they used to reach a web client only as the 200-char,
+ * bio-tier PERCEPT summary), and `display_turn` marks the boundary — so the
+ * story reads here instead of only in the serve terminal.
  */
 const REPLY_KIND = 'response'
 const UTTERANCE_KIND = 'user'
+const NARRATIVE_KINDS = new Set(['scene', 'summary'])
+const TURN_KIND = 'turn'
 
 const lineStyle: Record<ChatLine['role'], string> = {
   user: 'text-fg',
-  maxim: 'text-scene-fg',
+  maxim: 'whitespace-pre-wrap text-scene-fg',
   system: 'text-fg-muted italic',
+  turn: 'text-center text-[10px] uppercase tracking-widest text-fg-muted',
 }
 
 export interface ChatSurfaceProps {
@@ -108,6 +114,11 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
         if (event.kind === REPLY_KIND) {
           if (!claimReply(event.message)) return
           push({ role: 'maxim', text: event.message })
+        } else if (NARRATIVE_KINDS.has(event.kind)) {
+          // campaign prose — no dedupe: it arrives once, from the stream only
+          push({ role: 'maxim', text: event.message })
+        } else if (event.kind === TURN_KIND) {
+          push({ role: 'turn', text: event.message })
         } else if (event.kind === UTTERANCE_KIND) {
           const echoed = pendingEcho.current.indexOf(event.message)
           if (echoed !== -1) {
@@ -127,7 +138,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
       if (request.mode === 'adventure') {
         push({
           role: 'system',
-          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}. Narration prints in the maxim serve terminal — the DM narrates outside the record stream (flagged to pymaxim); thinking and bio activity are live in the rails.`,
+          text: `🎲 Adventure ${accepted.status} · run ${accepted.session_id}.`,
         })
       } else if (request.mode === 'talk') {
         const reply = accepted.reply
