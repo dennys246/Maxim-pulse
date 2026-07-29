@@ -5,6 +5,7 @@ import {
   CORE_PANELS,
   Drawer,
   EventClientProvider,
+  IdentityProvider,
   LiveStatusChip,
   ModelPicker,
   PanelProvider,
@@ -29,11 +30,13 @@ type OpenSurface = 'none' | 'models' | 'settings'
 
 export default function App() {
   return (
-    <EventClientProvider>
-      <PanelProvider panels={CORE_PANELS}>
-        <Shell />
-      </PanelProvider>
-    </EventClientProvider>
+    <IdentityProvider>
+      <EventClientProvider>
+        <PanelProvider panels={CORE_PANELS}>
+          <Shell />
+        </PanelProvider>
+      </EventClientProvider>
+    </IdentityProvider>
   )
 }
 

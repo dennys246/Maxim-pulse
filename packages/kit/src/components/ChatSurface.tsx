@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFacade } from '../facade/context'
 import { useEventClient } from '../facade/eventClient'
+import { useIdentity } from '../facade/identity'
 import { FacadeError } from '../facade/http'
 import type { RunRequest } from '../facade/types'
 import { AdventureLauncher } from './AdventureLauncher'
@@ -62,6 +63,7 @@ export interface ChatSurfaceProps {
 export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const facade = useFacade()
   const hub = useEventClient()
+  const { isSeamLive } = useIdentity()
   const [launcherOpen, setLauncherOpen] = useState(false)
   const nextId = useRef(0)
   const [lines, setLines] = useState<ChatLine[]>([
@@ -212,25 +214,29 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
         <button
           aria-label="Send"
           className="rounded-panel border border-edge bg-scene px-3 py-2 text-sm text-scene-fg disabled:opacity-50"
-          disabled={busy || draft.trim() === ''}
+          disabled={busy || draft.trim() === '' || !isSeamLive('talk')}
           onClick={submit}
         >
           ➤
         </button>
         <button
           aria-label="Start Adventure"
-          title="Start Adventure"
+          title={
+            isSeamLive('adventure')
+              ? 'Start Adventure'
+              : 'Adventure is not available on this backend'
+          }
           className="rounded-panel border border-edge bg-surface px-3 py-2 text-sm disabled:opacity-50"
-          disabled={busy}
+          disabled={busy || !isSeamLive('adventure')}
           onClick={() => setLauncherOpen(true)}
         >
           🎲
         </button>
         <button
           aria-label="Rest"
-          title="Rest"
+          title={isSeamLive('rest') ? 'Rest' : 'Rest is not available on this backend'}
           className="rounded-panel border border-edge bg-surface px-3 py-2 text-sm disabled:opacity-50"
-          disabled={busy}
+          disabled={busy || !isSeamLive('rest')}
           onClick={() => void start({ mode: 'rest' })}
         >
           😴

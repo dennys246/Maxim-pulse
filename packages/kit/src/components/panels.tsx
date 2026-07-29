@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ConsoleEvent } from '../facade/types'
 import { useEvents } from '../facade/eventClient'
+import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { MemoryView } from './MemoryView'
 import type { PanelSpec } from './PanelDock'
 
@@ -281,6 +282,13 @@ export const CORE_PANELS: PanelSpec[] = [
     side: 'left',
     activateOn: isDeliberation,
     render: () => <ThinkingPanel />,
+  },
+  {
+    id: 'diagnostics',
+    title: '🩺 Diagnostics',
+    icon: '🩺',
+    side: 'right',
+    render: () => <DiagnosticsPanel />,
   },
   {
     id: 'memory',

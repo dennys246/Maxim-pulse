@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { FacadeProvider, MockFacade, wireEvent } from '../facade'
 import { EventClientProvider } from '../facade/eventClient'
+import { IdentityProvider } from '../facade/identity'
 import { FacadeError } from '../facade/http'
 import { ChatSurface } from './ChatSurface'
 
@@ -187,4 +188,29 @@ test('bio-tier percepts never duplicate the narration into chat', async () => {
   })
   expect(await screen.findByText('The cavern yawns.')).toBeInTheDocument()
   expect(screen.queryByText(/👁️/)).not.toBeInTheDocument()
+})
+
+test('a seam the backend reports as not live disables its control up front', async () => {
+  const facade = new MockFacade()
+  facade.backend = {
+    ...facade.backend,
+    seams: [
+      { name: 'talk', live: true, detail: null },
+      { name: 'rest', live: false, detail: 'not implemented' },
+      { name: 'adventure', live: true, detail: null },
+    ],
+  }
+  render(
+    <FacadeProvider facade={facade}>
+      <EventClientProvider>
+        <IdentityProvider>
+          <ChatSurface />
+        </IdentityProvider>
+      </EventClientProvider>
+    </FacadeProvider>,
+  )
+  // identity resolves async; the control disables once it lands
+  await screen.findByLabelText('Say something to Maxim')
+  await vi.waitFor(() => expect(screen.getByLabelText('Rest')).toBeDisabled())
+  expect(screen.getByLabelText('Start Adventure')).toBeEnabled()
 })
