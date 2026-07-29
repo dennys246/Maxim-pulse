@@ -158,3 +158,33 @@ test('within ONE turn the two delivery paths still collapse to a single line', a
   act(() => facade.emit(say('response', 'Same message, one line.')))
   expect(screen.getAllByText('Same message, one line.')).toHaveLength(1)
 })
+
+test('campaign narration reads in the chat: scene prose, turn dividers, summaries', async () => {
+  const facade = new MockFacade()
+  renderChat(facade)
+  const scene =
+    'Bright morning light. The cave entrance is wide, decorated with mineral deposits that glitter in the sun.'
+  act(() => {
+    facade.emit(wireEvent('turn', { tier: 'clean', message: 'Turn 1', data: { turn: 1 } }))
+    facade.emit(wireEvent('scene', { tier: 'clean', message: scene, data: { text: scene } }))
+    facade.emit(
+      wireEvent('summary', { tier: 'clean', message: 'You mapped the entrance.', data: {} }),
+    )
+  })
+  // full prose, not the 200-char PERCEPT truncation
+  expect(await screen.findByText(scene)).toBeInTheDocument()
+  expect(screen.getByText('Turn 1')).toBeInTheDocument()
+  expect(screen.getByText('You mapped the entrance.')).toBeInTheDocument()
+})
+
+test('bio-tier percepts never duplicate the narration into chat', async () => {
+  const facade = new MockFacade()
+  renderChat(facade)
+  act(() => {
+    facade.emit(wireEvent('scene', { tier: 'clean', message: 'The cavern yawns.' }))
+    // the same scene also fires as a truncated, bio-tier percept — panel only
+    facade.emit(wireEvent('percept', { message: '👁️ [cli] The cavern yawns' }))
+  })
+  expect(await screen.findByText('The cavern yawns.')).toBeInTheDocument()
+  expect(screen.queryByText(/👁️/)).not.toBeInTheDocument()
+})
