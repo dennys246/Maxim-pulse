@@ -71,11 +71,17 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   /** Utterances echoed locally, awaiting their USER record so we can drop it. */
   const pendingEcho = useRef<string[]>([])
   /**
-   * Replies already shown. talk delivers each reply TWICE — synchronously as
-   * RunAccepted.reply and on the stream as a RESPONSE record — and either can
-   * arrive first (or alone, if the socket dropped). First one wins.
+   * Replies rendered during the CURRENT turn. talk delivers each reply twice —
+   * synchronously as RunAccepted.reply and on the stream as a RESPONSE record,
+   * in either order (or once, if the socket dropped) — so the first delivery
+   * wins and the second is dropped.
+   *
+   * Scoped per turn, and cleared on each send: identical text in a LATER turn
+   * is a real message, not a duplicate. (A global list silently swallowed
+   * repeats — e.g. pymaxim's "(no reply — the turn produced no respond/speak
+   * action)" placeholder, which is byte-identical every time it fires.)
    */
-  const shownReplies = useRef<string[]>([])
+  const renderedThisTurn = useRef<string[]>([])
 
   useEffect(() => {
     // optional-call: jsdom has no scrollTo
@@ -85,14 +91,10 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
   const push = (line: Omit<ChatLine, 'id'>) =>
     setLines((prev) => [...prev, { ...line, id: nextId.current++ }])
 
-  /** True if this reply text has not been rendered yet (and claims it). */
+  /** True if this reply hasn't been rendered yet THIS TURN (and claims it). */
   const claimReply = (text: string) => {
-    const at = shownReplies.current.indexOf(text)
-    if (at !== -1) {
-      shownReplies.current.splice(at, 1) // the other delivery path already showed it
-      return false
-    }
-    shownReplies.current.push(text)
+    if (renderedThisTurn.current.includes(text)) return false
+    renderedThisTurn.current.push(text)
     return true
   }
 
@@ -162,6 +164,7 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
     if (text === '' || busy) return
     push({ role: 'user', text })
     pendingEcho.current.push(text) // drop the USER record that echoes this back
+    renderedThisTurn.current = [] // a new turn: repeated reply text is a new message
     setDraft('')
     void start({ mode: 'talk', input: text })
   }
