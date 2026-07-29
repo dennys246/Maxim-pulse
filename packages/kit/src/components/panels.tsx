@@ -13,6 +13,42 @@ import type { PanelSpec } from './PanelDock'
  * stay stable for useEvents/activateOn.
  */
 
+/**
+ * Plain-language glosses for the bio subsystems, from docs/plans/glossary.md.
+ * These are LABELS, not renames: every log line still prints `[hippocampus]`
+ * and each chip's tooltip names the subsystem, because bio-naming is
+ * load-bearing (AGENTS.md).
+ */
+const KIND_LABELS: Record<string, { label: string; blurb: string }> = {
+  hippocampus: {
+    label: 'Memories',
+    blurb: 'hippocampus — episodic memory: capture, recall, consolidation',
+  },
+  nac: { label: 'Reward', blurb: 'NAc — reward bias, causal links, eligibility traces' },
+  scn: { label: 'Timing', blurb: 'SCN — temporal/circadian credit' },
+  atl: { label: 'Meaning', blurb: 'ATL — semantic hub' },
+  ec: { label: 'Concepts', blurb: 'EC — pattern completion/separation (concept clustering)' },
+  cerebellum: { label: 'Skills', blurb: 'cerebellum — predictive models of affordances' },
+  percept: { label: 'Senses', blurb: 'percept — incoming stimuli' },
+  sensory: { label: 'Senses', blurb: 'sensory — sensor input' },
+  sensor: { label: 'Senses', blurb: 'sensor — sensor input' },
+  motor: { label: 'Actions', blurb: 'motor — tool execution' },
+  deliberation: { label: 'Thinking', blurb: 'deliberation — the reasoning cycle' },
+  thought: { label: 'Thinking', blurb: 'thought — the deliberation gate' },
+  fear: { label: 'Safety', blurb: 'fear — threat appraisal' },
+  pain: { label: 'Safety', blurb: 'pain — pain signals' },
+  drive: { label: 'Drives', blurb: 'drive — homeostatic drives' },
+  reflex: { label: 'Reflexes', blurb: 'reflex — reactive behaviours' },
+  learn: { label: 'Learning', blurb: 'learn — headline learning moments' },
+  enrichment: { label: 'Enrichment', blurb: 'enrichment — what the bio-stack added to a cycle' },
+  imagination: { label: 'Imagination', blurb: 'imagination — imagined scenarios' },
+  discovery: { label: 'Discovery', blurb: 'discovery — newly found affordances' },
+  gate: { label: 'Gating', blurb: 'gate — enrichment gating' },
+  body: { label: 'Body', blurb: 'body — embodiment state' },
+  body_state: { label: 'Body', blurb: 'body_state — embodiment state' },
+  percept_source: { label: 'Senses', blurb: 'percept source' },
+}
+
 const isBioTier = (event: ConsoleEvent) => event.tier === 'bio'
 const isDeliberation = (event: ConsoleEvent) => event.kind === 'deliberation'
 
@@ -52,7 +88,7 @@ function collapseRepeats(events: ConsoleEvent[]): Array<{ event: ConsoleEvent; c
  * the count so nothing disappears without saying so.
  */
 export function ActivityPanel() {
-  const events = useEvents({ match: isBioTier, limit: 200 })
+  const events = useEvents({ match: isBioTier, limit: 2000 })
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set())
 
   if (events.length === 0)
@@ -80,7 +116,7 @@ export function ActivityPanel() {
               key={kind}
               aria-label={`${isMuted ? 'Show' : 'Mute'} ${kind}`}
               aria-pressed={!isMuted}
-              title={isMuted ? `${kind} hidden — click to show` : `Hide ${kind}`}
+              title={`${KIND_LABELS[kind]?.blurb ?? kind}${isMuted ? ' — hidden; click to show' : ''}`}
               className={`rounded-sm border px-1 font-mono text-[10px] ${
                 isMuted
                   ? 'border-edge text-fg-muted line-through opacity-60'
@@ -88,7 +124,7 @@ export function ActivityPanel() {
               }`}
               onClick={() => toggle(kind)}
             >
-              {kind} ×{count}
+              {KIND_LABELS[kind]?.label ?? kind} ×{count}
             </button>
           )
         })}
@@ -131,20 +167,58 @@ function asStrings(value: unknown): string[] {
 /**
  * ThinkingPanel — the reasoning chain itself, not a "thoughts exist" light.
  *
- * `deliberation` records carry the reasoning in `data.text` (the counter in
- * `message` is only a cycle marker), plus which bio-systems enriched each
- * cycle (`enrichment_tags`/`enrichment_details`) — exactly the panel the
- * plans describe. Reasoning renders UNDIMMED: the terminal deliberately keeps
- * PFC subsystems (thought/deliberation) out of its bio-dim set.
+ * FOUR different emitters write `deliberation` records and only two carry
+ * reasoning: `sim_deliberation_update`/`_end` put it in `data.text`, while
+ * `sim_contemplation` and agent_loop's convergence lines ("deliberation
+ * converged…", "max cycles reached") are status only. Mixing them buried the
+ * actual thoughts, so reasoning renders as prose and status collapses to a
+ * dim marker line.
+ *
+ * Reasoning renders UNDIMMED: the terminal deliberately keeps PFC subsystems
+ * (thought/deliberation) out of its bio-dim set.
  */
 export function ThinkingPanel() {
-  const events = useEvents({ kinds: ['deliberation'], limit: 20 })
+  const events = useEvents({ kinds: ['deliberation'], limit: 100 })
+  const [showStatus, setShowStatus] = useState(false)
   if (events.length === 0) return <p className="text-xs text-bio-fg">No active deliberation.</p>
+
+  const reasoned = events.filter(
+    (event) => typeof event.data?.text === 'string' && event.data.text !== '',
+  )
+  const statusOnly = events.length - reasoned.length
+  const shown = showStatus ? events : reasoned
+
+  return (
+    <div className="flex flex-col gap-1">
+      {statusOnly > 0 && (
+        <button
+          className="self-start text-[10px] text-fg-muted hover:text-fg"
+          aria-label={
+            showStatus ? 'Hide deliberation status lines' : 'Show deliberation status lines'
+          }
+          onClick={() => setShowStatus((value) => !value)}
+        >
+          {showStatus ? '▾' : '▸'} {statusOnly} status line{statusOnly === 1 ? '' : 's'}
+        </button>
+      )}
+      {reasoned.length === 0 && !showStatus && (
+        <p className="text-xs text-bio-fg">
+          No reasoning text yet — this turn produced only status lines (the deliberation gate may
+          not have opened).
+        </p>
+      )}
+      <ThinkingEntries events={shown} />
+    </div>
+  )
+}
+
+function ThinkingEntries({ events }: { events: ConsoleEvent[] }) {
   return (
     <ol data-testid="thinking-panel" className="flex flex-col gap-2">
       {events.map((event, index) => {
         const data = event.data ?? {}
-        const text = typeof data.text === 'string' && data.text !== '' ? data.text : event.message
+        const reasoning = typeof data.text === 'string' && data.text !== '' ? data.text : null
+        const text = reasoning ?? event.message
         const cycle = typeof data.cycle === 'number' ? data.cycle : null
         const maxCycles = typeof data.max_cycles === 'number' ? data.max_cycles : null
         const completed = data.completed === true
@@ -153,6 +227,13 @@ export function ThinkingPanel() {
           typeof data.enrichment_details === 'object' && data.enrichment_details !== null
             ? (data.enrichment_details as Record<string, unknown>)
             : {}
+        if (reasoning == null) {
+          return (
+            <li key={index} className="pl-2 text-[10px] text-fg-muted">
+              {text}
+            </li>
+          )
+        }
         return (
           <li key={index} className="border-l-2 border-edge pl-2">
             <p className="text-[10px] uppercase tracking-wide text-fg-muted">
