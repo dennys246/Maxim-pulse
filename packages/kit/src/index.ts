@@ -12,6 +12,8 @@ export { ConnectionTest, type ConnectionTestProps } from './components/Connectio
 export { ModelPicker, type ModelPickerProps } from './components/ModelPicker'
 export { SetupWizard, type SetupWizardProps } from './components/SetupWizard'
 export { LiveStatusChip } from './components/LiveStatusChip'
+export { BackendChip } from './components/BackendChip'
+export { DiagnosticsPanel } from './components/DiagnosticsPanel'
 export { MemoryView } from './components/MemoryView'
 export { RunSurface, type RunSurfaceProps } from './components/RunSurface'
 export { ChatSurface, type ChatSurfaceProps } from './components/ChatSurface'
@@ -26,4 +28,5 @@ export {
   useEvents,
   type EventFilter,
 } from './facade/eventClient'
+export { IdentityProvider, useIdentity } from './facade/identity'
 export * from './facade'

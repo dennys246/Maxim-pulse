@@ -1,9 +1,11 @@
 import {
+  BackendChip,
   ChatSurface,
   ConnectionTest,
   CORE_PANELS,
   Drawer,
   EventClientProvider,
+  IdentityProvider,
   LiveStatusChip,
   ModelPicker,
   PanelProvider,
@@ -28,11 +30,13 @@ type OpenSurface = 'none' | 'models' | 'settings'
 
 export default function App() {
   return (
-    <EventClientProvider>
-      <PanelProvider panels={CORE_PANELS}>
-        <Shell />
-      </PanelProvider>
-    </EventClientProvider>
+    <IdentityProvider>
+      <EventClientProvider>
+        <PanelProvider panels={CORE_PANELS}>
+          <Shell />
+        </PanelProvider>
+      </EventClientProvider>
+    </IdentityProvider>
   )
 }
 
@@ -49,7 +53,12 @@ function Shell() {
   return (
     <div className="flex h-screen flex-col bg-bg font-sans text-fg">
       <TopBar
-        left={<LiveStatusChip />}
+        left={
+          <>
+            <LiveStatusChip />
+            <BackendChip />
+          </>
+        }
         right={
           <>
             <TopBarButton label="Models" onClick={() => toggleSurface('models')}>
