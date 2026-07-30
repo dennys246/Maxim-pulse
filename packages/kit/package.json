@@ -14,7 +14,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "gen:facade": "openapi-typescript openapi.json -o src/facade/schema.ts && node ../../scripts/gen-contract-version.mjs",
-    "gen:facade:check": "openapi-typescript openapi.json -o node_modules/.schema-check.ts && diff -u src/facade/schema.ts node_modules/.schema-check.ts && node ../../scripts/gen-contract-version.mjs && git diff --quiet src/facade/contractVersion.ts || (echo 'generated facade is stale — run pnpm gen:facade' && exit 1)"
+    "gen:facade:check": "openapi-typescript openapi.json -o node_modules/.schema-check.ts && diff -u src/facade/schema.ts node_modules/.schema-check.ts && node ../../scripts/gen-contract-version.mjs --check || (echo 'generated facade is stale — run pnpm gen:facade' && exit 1)"
   },
   "peerDependencies": {
     "react": "^19.0.0",

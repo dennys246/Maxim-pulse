@@ -39,6 +39,28 @@ interface ChatLine {
  * story reads here instead of only in the serve terminal.
  */
 const REPLY_KIND = 'response'
+
+/**
+ * What a turn actually DID. The talk path emits no MOTOR records, so a
+ * RESPONSE record's `actions`/`failed_actions` are the only account of it —
+ * which is why a turn that searched the web and never spoke used to read as
+ * pure silence.
+ */
+function turnActivity(data: Record<string, unknown> | undefined): string | null {
+  const names = Array.isArray(data?.actions)
+    ? data.actions.filter((a): a is string => typeof a === 'string')
+    : []
+  if (names.length === 0) return null
+  const failed = new Set(
+    Array.isArray(data?.failed_actions)
+      ? data.failed_actions.filter((a): a is string => typeof a === 'string')
+      : [],
+  )
+  // 'respond' is the reply itself — narrating it would be noise
+  const notable = names.filter((name) => name !== 'respond' && name !== 'speak')
+  if (notable.length === 0) return null
+  return notable.map((name) => (failed.has(name) ? `${name} (failed)` : name)).join(', ')
+}
 const UTTERANCE_KIND = 'user'
 const NARRATIVE_KINDS = new Set(['scene', 'summary'])
 const TURN_KIND = 'turn'
@@ -114,8 +136,10 @@ export function ChatSurface({ statusSlot }: ChatSurfaceProps = {}) {
     () =>
       hub.listen((event) => {
         if (event.kind === REPLY_KIND) {
+          const activity = turnActivity(event.data)
           if (!claimReply(event.message)) return
           push({ role: 'maxim', text: event.message })
+          if (activity != null) push({ role: 'system', text: `↳ this turn ran: ${activity}` })
         } else if (NARRATIVE_KINDS.has(event.kind)) {
           // campaign prose — no dedupe: it arrives once, from the stream only
           push({ role: 'maxim', text: event.message })
