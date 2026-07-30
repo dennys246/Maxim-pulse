@@ -5,4 +5,4 @@
  * against a live backend's /api/identity.contract_version so a UI built for a
  * different API than the server speaks says so, loudly.
  */
-export const CONTRACT_VERSION = '0.2.0'
+export const CONTRACT_VERSION = '0.3.0'

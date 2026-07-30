@@ -40,3 +40,27 @@ test('an ok-only report still renders every check', async () => {
   )
   expect(await screen.findByTestId('diagnostics-panel')).toHaveTextContent('placement')
 })
+
+test('multi-line fix hints keep their line breaks (real payloads carry shell snippets)', async () => {
+  const facade = new MockFacade()
+  const fix = 'echo KEY > ~/.config/maxim/api_key\nchmod 0600 ~/.config/maxim/api_key'
+  facade.diagnostic = {
+    platform: { os: 'macos', os_release: '26.5', arch: 'arm64', runtime: 'native' },
+    sections: [
+      {
+        name: 'lanes.large.remote_api_key_ref',
+        status: 'warn',
+        detail: 'inline key',
+        extra: { group: 'Resolved Config', fix },
+      },
+    ],
+  }
+  render(
+    <FacadeProvider facade={facade}>
+      <DiagnosticsPanel />
+    </FacadeProvider>,
+  )
+  const hint = await screen.findByText(/chmod 0600/)
+  expect(hint).toHaveClass('whitespace-pre-wrap')
+  expect(hint.textContent).toContain('\n')
+})

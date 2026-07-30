@@ -85,7 +85,9 @@ export function DiagnosticsPanel() {
                     </span>
                     {row.detail != null && <span className="text-fg-muted"> — {row.detail}</span>}
                     {fix != null && row.status !== 'ok' && (
-                      <span className="block pl-3 text-[10px] text-accent">↳ {fix}</span>
+                      <span className="mt-0.5 block whitespace-pre-wrap border-l border-accent/40 pl-2 font-mono text-[10px] text-accent">
+                        {fix}
+                      </span>
                     )}
                   </li>
                 )

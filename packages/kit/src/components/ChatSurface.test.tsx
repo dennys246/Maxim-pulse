@@ -214,3 +214,39 @@ test('a seam the backend reports as not live disables its control up front', asy
   await vi.waitFor(() => expect(screen.getByLabelText('Rest')).toBeDisabled())
   expect(screen.getByLabelText('Start Adventure')).toBeEnabled()
 })
+
+test('a turn reports what it ran — the fix for "searched and said nothing"', async () => {
+  const facade = new MockFacade()
+  renderChat(facade)
+  act(() =>
+    facade.emit(
+      wireEvent('response', {
+        tier: 'clean',
+        message: '(no reply — the turn produced no respond/speak action)',
+        data: {
+          text: null,
+          actions: ['internet_search'],
+          failed_actions: ['internet_search'],
+        },
+      }),
+    ),
+  )
+  expect(await screen.findByText(/no reply/)).toBeInTheDocument()
+  expect(screen.getByText('↳ this turn ran: internet_search (failed)')).toBeInTheDocument()
+})
+
+test('a plain reply does not narrate its own respond action', async () => {
+  const facade = new MockFacade()
+  renderChat(facade)
+  act(() =>
+    facade.emit(
+      wireEvent('response', {
+        tier: 'clean',
+        message: 'Hello there.',
+        data: { text: 'Hello there.', actions: ['respond'], failed_actions: [] },
+      }),
+    ),
+  )
+  expect(await screen.findByText('Hello there.')).toBeInTheDocument()
+  expect(screen.queryByText(/this turn ran/)).not.toBeInTheDocument()
+})
