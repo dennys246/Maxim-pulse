@@ -32,6 +32,8 @@ export type CampaignInfo = components['schemas']['CampaignInfo']
 export type CampaignsResponse = components['schemas']['CampaignsResponse']
 export type RunRequest = components['schemas']['RunRequest']
 export type RunAccepted = components['schemas']['RunAccepted']
+/** Client→server /ws filter; meta-kinds bypass it server-side. */
+export type SubscribeFrame = components['schemas']['SubscribeFrame']
 /** The /ws stream envelope (exposed at GET /api/events/envelope for type-gen). */
 export type ConsoleEvent = components['schemas']['ConsoleEvent']
 

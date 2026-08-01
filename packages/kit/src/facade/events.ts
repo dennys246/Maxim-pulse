@@ -1,10 +1,12 @@
-import type { ConsoleEvent } from './types'
+import type { ConsoleEvent, SubscribeFrame } from './types'
 
 type EventHandler = (event: ConsoleEvent) => void
 
 /** Minimal WebSocket surface we need — lets tests inject a fake. */
 export interface WsLike {
   onopen: (() => void) | null
+  /** Client→server frames (SubscribeFrame). Absent on receive-only fakes. */
+  send?: (data: string) => void
   onmessage: ((event: { data: unknown }) => void) | null
   onclose: (() => void) | null
   onerror: (() => void) | null
@@ -25,8 +27,15 @@ const BACKOFF_CAP_MS = 8_000
  * last subscriber leaves. The EVENT seam is LIVE server-side: /ws streams
  * sim_log records as v2 envelopes (kind = lowercased subsystem, tier as the
  * typed filter axis, seq/run_id, drop-oldest backpressure with a "dropped"
- * meta-event). Client→server SubscribeFrame filtering is a follow-up — this
- * transport is receive-only today, so it gets the unfiltered stream.
+ * meta-event).
+ *
+ * SUBSCRIBE FILTERING: pass a SubscribeFrame and it is sent on every
+ * connection (each one filters independently, and a reconnect needs its own).
+ * Meta-kinds — heartbeat, run, dropped, display, identity — bypass filters
+ * server-side, so run lifecycle and backend identity survive any filter. A
+ * shell that renders no bio-tier surface can subscribe at tier "clean" and
+ * drop the ~87%% of traffic the idle loop generates, which is the difference
+ * between a comfortable and a busy socket on a Pi.
  */
 export class WsEventSource {
   private handlers = new Map<string, Set<EventHandler>>()
@@ -38,6 +47,8 @@ export class WsEventSource {
   constructor(
     private resolveUrl: () => string,
     private wsFactory: WsFactory = (url) => new WebSocket(url) as unknown as WsLike,
+    /** Optional server-side filter, re-sent on every (re)connection. */
+    private subscribe?: SubscribeFrame,
   ) {}
 
   on(kind: string, handler: EventHandler): () => void {
@@ -69,6 +80,9 @@ export class WsEventSource {
     this.ws = ws
     ws.onopen = () => {
       this.attempts = 0
+      if (this.subscribe != null && ws.send != null) {
+        ws.send(JSON.stringify(this.subscribe))
+      }
     }
     ws.onmessage = (message) => {
       let event: ConsoleEvent
