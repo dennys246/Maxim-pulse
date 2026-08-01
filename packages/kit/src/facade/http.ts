@@ -14,6 +14,7 @@ import type {
   RunAccepted,
   RunRequest,
   SetupResult,
+  SubscribeFrame,
 } from './types'
 
 /**
@@ -42,6 +43,12 @@ export interface HttpFacadeOptions {
   baseUrl?: string
   fetchImpl?: typeof fetch
   wsFactory?: WsFactory
+  /**
+   * Server-side stream filter. Omit to receive everything (the Console needs
+   * bio-tier records for its activity panel); a shell rendering only clean
+   * surfaces should pass `{ tier: 'clean' }`.
+   */
+  subscribe?: SubscribeFrame
 }
 
 /**
@@ -57,7 +64,7 @@ export class HttpFacade implements FacadeClient {
   constructor(options: HttpFacadeOptions = {}) {
     this.baseUrl = options.baseUrl ?? ''
     this.fetchImpl = options.fetchImpl ?? fetch
-    this.events = new WsEventSource(() => this.wsUrl(), options.wsFactory)
+    this.events = new WsEventSource(() => this.wsUrl(), options.wsFactory, options.subscribe)
   }
 
   private wsUrl(): string {

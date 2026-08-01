@@ -20,6 +20,7 @@ export type {
   RunRequest,
   SetupResult,
   StoryMemory,
+  SubscribeFrame,
 } from './types'
 export type { components, paths } from './schema'
 export { MockFacade, wireEvent } from './mock'

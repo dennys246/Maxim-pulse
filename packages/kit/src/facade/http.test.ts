@@ -13,7 +13,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 class FakeWs implements WsLike {
   static instances: FakeWs[] = []
+  sent: string[] = []
   onopen: (() => void) | null = null
+  send(data: string) {
+    this.sent.push(data)
+  }
   onmessage: ((event: { data: unknown }) => void) | null = null
   onclose: (() => void) | null = null
   onerror: (() => void) | null = null
@@ -120,4 +124,39 @@ test('WsEventSource reconnects with backoff while subscribed', () => {
   } finally {
     vi.useRealTimers()
   }
+})
+
+test('a subscribe frame is sent on connect — and again on every reconnect', () => {
+  vi.useFakeTimers()
+  try {
+    const source = new WsEventSource(
+      () => 'ws://test/ws',
+      (url) => new FakeWs(url),
+      { tier: 'clean' },
+    )
+    source.on('heartbeat', () => {})
+    const first = FakeWs.instances[0]!
+    first.open()
+    expect(first.sent).toEqual(['{"tier":"clean"}'])
+
+    // each connection filters independently, so a reconnect must re-send
+    first.drop()
+    vi.advanceTimersByTime(500)
+    const second = FakeWs.instances[1]!
+    second.open()
+    expect(second.sent).toEqual(['{"tier":"clean"}'])
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('no frame is sent when no filter is configured (the Console needs everything)', () => {
+  const source = new WsEventSource(
+    () => 'ws://test/ws',
+    (url) => new FakeWs(url),
+  )
+  source.on('heartbeat', () => {})
+  const ws = FakeWs.instances[0]!
+  ws.open()
+  expect(ws.sent).toEqual([])
 })
