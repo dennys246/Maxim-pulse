@@ -8,9 +8,20 @@
  * so an unstamped bundle is an unverifiable one — including the common dev
  * case of serving `apps/console/dist` directly via --ui-dist.
  *
- * `contract_version` is openapi.json's info.version: the maxim serve contract
- * this bundle's typed client was generated against. It is the one drift
- * `gen:facade:check` cannot see, because it crosses the release boundary.
+ * The stamp answers three questions a consumer needs and could not previously
+ * ask:
+ *
+ * - WHICH bundle is this?  `describe` is tag-anchored (`v0.2.0-3-gb1b3aaa`),
+ *   so two builds are distinguishable even when package.json has not moved.
+ * - IS IT STALE?  `commit_date` is the HEAD committer date — orderable, so a
+ *   vendored bundle can be compared against the source it should match.
+ *   Deliberately NOT a build timestamp: that would make every rebuild differ
+ *   and destroy byte-identical reproducibility. Source time answers staleness;
+ *   wall-clock build time does not.
+ * - DOES IT MATCH THE BACKEND?  `contract_version` is openapi.json's
+ *   info.version — the maxim serve contract this bundle's typed client was
+ *   generated against. It is the one drift `gen:facade:check` cannot see,
+ *   because it crosses the release boundary.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -25,16 +36,33 @@ const CONTRACT = 'packages/kit/openapi.json'
 
 function git(args) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8' }).trim()
+    // TZ=UTC so commit_date is identical whoever builds it
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      env: { ...process.env, TZ: 'UTC' },
+    }).trim()
   } catch {
     return ''
   }
 }
 
+/** Fields a bundle must carry to be identifiable, checkable and matchable. */
+export const REQUIRED_STAMP_FIELDS = [
+  'target',
+  'app_version',
+  'contract_version',
+  'commit',
+  'commit_date',
+  'describe',
+]
+
 /** Stamp every built target; returns the stamps written. */
 export function stampDists() {
   const contractVersion = JSON.parse(readFileSync(CONTRACT, 'utf8')).info?.version ?? 'unknown'
   const commit = git(['rev-parse', '--short', 'HEAD']) || 'unknown'
+  const commitDate = git(['log', '-1', '--format=%cd', '--date=iso-strict-local']) || null
+  // --always so an untagged repo still yields the sha rather than nothing
+  const describe = git(['describe', '--tags', '--always', '--dirty']) || commit
   const dirty = git(['status', '--porcelain']) !== ''
 
   const written = []
@@ -44,7 +72,12 @@ export function stampDists() {
       target: target.name,
       app_version: JSON.parse(readFileSync(target.pkg, 'utf8')).version,
       contract_version: contractVersion,
-      commit: dirty ? `${commit}-dirty` : commit,
+      // `commit` stays a clean sha; dirtiness is its own field rather than a
+      // suffix, so consumers can parse either without string surgery.
+      commit,
+      commit_date: commitDate,
+      describe,
+      dirty,
     }
     writeFileSync(join(target.dist, 'maxim-ui.json'), `${JSON.stringify(stamp, null, 2)}\n`)
     written.push({ target, stamp })

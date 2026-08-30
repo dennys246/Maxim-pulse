@@ -38,11 +38,20 @@ jobs:
           name: ui-dist
           path: artifacts/*.tar.gz
           if-no-files-found: error
-      - name: Attach bundles to the release
+      # A tag is the ONLY durable home these bundles have — dist/ is gitignored
+      # on both sides, so without this the artifact exists nowhere pymaxim can
+      # vendor from. `gh release upload` alone fails when the release does not
+      # exist yet, which is every first tag, so create-then-fall-back-to-upload.
+      - name: Publish bundles to the release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" artifacts/*.tar.gz --clobber
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/*.tar.gz \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+          || gh release upload "$GITHUB_REF_NAME" artifacts/*.tar.gz --clobber
+          gh release view "$GITHUB_REF_NAME" --json assets \
+            --jq '.assets[].name' | sort | tee /dev/stderr | grep -qx 'console-dist.tar.gz'
 
   python:
     runs-on: ubuntu-latest
