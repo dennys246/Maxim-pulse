@@ -67,14 +67,37 @@ CI uploads both on every build and attaches them to the GitHub release when a
 must be verifiable too):
 
 ```json
-{ "target": "console", "app_version": "0.0.1", "contract_version": "0.1.0", "commit": "abc1234" }
+{
+  "target": "console",
+  "app_version": "0.1.0",
+  "contract_version": "0.3.0",
+  "commit": "c6dfcc9",
+  "commit_date": "2026-08-01T03:02:30Z",
+  "describe": "v0.1.0-3-gc6dfcc9",
+  "dirty": false
+}
 ```
 
-`contract_version` is the `info.version` of the `maxim serve` OpenAPI contract
-the bundle's typed client was generated against. Serving a bundle whose
-`contract_version` differs from the server's own is the one drift
-`gen:facade:check` can't catch — it crosses the release boundary — so consumers
-should read this file and warn on mismatch.
+It exists so a consumer can answer three questions about a bundle it did not
+build:
+
+| Question                       | Field              | Why it is not something else                                                                                                                                                                                                                    |
+| ------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Which bundle is this?**      | `describe`         | Tag-anchored, so two builds differ even when `app_version` has not moved. `app_version` alone was frozen at `0.0.1` and identified nothing.                                                                                                     |
+| **Is it stale?**               | `commit_date`      | Orderable, so a vendored bundle can be compared against the source it should match. Deliberately the HEAD **committer** date, not a build timestamp — a build clock would make every rebuild differ and destroy byte-identical reproducibility. |
+| **Does it match the backend?** | `contract_version` | The `maxim serve` contract its typed client was generated against — the one drift `gen:facade:check` cannot see, because it crosses the release boundary.                                                                                       |
+
+`dirty` is its own boolean rather than a `-dirty` suffix on `commit`, so either
+field can be parsed without string surgery. `pnpm dist:pack` refuses to package
+a bundle missing any of these: once vendored into a wheel there is no way to ask
+what it is after the fact.
+
+**Durability.** `dist/` is gitignored here _and_ in pymaxim, so a build output
+is not an artifact anyone can vendor from later. Pushing a `v*` tag is what
+makes one durable: CI packs both bundles and publishes them as release assets
+(creating the release if it does not exist), and every build additionally
+uploads them as a workflow artifact for testing a vendor step before a tag
+exists.
 
 ## License
 

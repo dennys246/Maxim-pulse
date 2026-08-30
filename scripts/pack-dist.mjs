@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
-import { stampDists, TARGETS } from './stamp-dist.mjs'
+import { REQUIRED_STAMP_FIELDS, stampDists, TARGETS } from './stamp-dist.mjs'
 
 const OUT_DIR = 'artifacts'
 
@@ -31,6 +31,18 @@ for (const target of TARGETS) {
 }
 
 const stamps = new Map(stampDists().map(({ target, stamp }) => [target.name, stamp]))
+
+// A bundle that cannot be identified must not become a durable artifact:
+// once vendored into a wheel there is no way to ask what it is after the fact.
+for (const [name, stamp] of stamps) {
+  const missing = REQUIRED_STAMP_FIELDS.filter(
+    (field) => stamp[field] == null || stamp[field] === '',
+  )
+  if (missing.length > 0) {
+    console.error(`dist:pack — ${name} bundle stamp is missing ${missing.join(', ')}`)
+    process.exit(1)
+  }
+}
 mkdirSync(OUT_DIR, { recursive: true })
 
 for (const target of TARGETS) {

@@ -1,6 +1,6 @@
 {
   "name": "@maxim/console",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Maxim Console — the localhost dashboard shell (Layer 3), served by pymaxim's `maxim serve`.",
