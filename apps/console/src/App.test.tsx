@@ -1,19 +1,34 @@
-import { FacadeProvider, MockFacade } from '@maxim/kit'
+import { CONTRACT_VERSION, FacadeProvider, MockFacade } from '@maxim/kit'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
-function renderApp() {
+function renderApp(facade = new MockFacade()) {
   return render(
-    <FacadeProvider facade={new MockFacade()}>
+    <FacadeProvider facade={facade}>
       <App />
     </FacadeProvider>,
   )
 }
 
-test('console lands on the chat surface flanked by panel rails', () => {
+test('the Demo target guard: over a MockFacade the console NEVER renders a login screen', async () => {
   renderApp()
-  expect(screen.getByLabelText('Say something to Maxim')).toBeInTheDocument()
+  expect(await screen.findByLabelText('Say something to Maxim')).toBeInTheDocument()
+  expect(screen.queryByText('Sign in to Maxim Console')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Console token')).not.toBeInTheDocument()
+})
+
+test('against a bearer backend with no token the console is the paste screen and nothing else', async () => {
+  const facade = new MockFacade()
+  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer' }
+  renderApp(facade)
+  expect(await screen.findByText('Sign in to Maxim Console')).toBeInTheDocument()
+  expect(screen.queryByLabelText('Say something to Maxim')).not.toBeInTheDocument()
+})
+
+test('console lands on the chat surface flanked by panel rails', async () => {
+  renderApp()
+  expect(await screen.findByLabelText('Say something to Maxim')).toBeInTheDocument()
   expect(screen.getByLabelText('left panel rail')).toBeInTheDocument()
   expect(screen.getByLabelText('right panel rail')).toBeInTheDocument()
   expect(screen.getByLabelText('Open Bio activity')).toBeInTheDocument()
@@ -30,7 +45,7 @@ test('console lands on the chat surface flanked by panel rails', () => {
 
 test('✦ opens the memory panel in the right rail', async () => {
   renderApp()
-  await userEvent.click(screen.getByLabelText('What Maxim remembers'))
+  await userEvent.click(await screen.findByLabelText('What Maxim remembers'))
   expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument()
   await userEvent.click(screen.getByLabelText('Close ✦ What Maxim remembers panel'))
   expect(screen.queryByText(/Nothing yet/)).not.toBeInTheDocument()
@@ -38,7 +53,7 @@ test('✦ opens the memory panel in the right rail', async () => {
 
 test('gear drawer holds setup and dev tools; 🎲 opens the launcher', async () => {
   renderApp()
-  await userEvent.click(screen.getByLabelText('Settings'))
+  await userEvent.click(await screen.findByLabelText('Settings'))
   expect(screen.getByText('Where should Maxim think?')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Test connection' })).toBeInTheDocument()
   await userEvent.click(screen.getByLabelText('Close Settings'))

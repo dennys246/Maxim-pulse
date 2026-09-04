@@ -1,4 +1,5 @@
 import {
+  AuthGate,
   BackendChip,
   ChatSurface,
   CORE_PANELS,
@@ -37,13 +38,15 @@ const REACHY_PANELS: PanelSpec[] = CORE_PANELS.filter((panel) => panel.id === 'm
 
 export default function App() {
   return (
-    <IdentityProvider>
-      <EventClientProvider>
-        <PanelProvider panels={REACHY_PANELS}>
-          <Shell />
-        </PanelProvider>
-      </EventClientProvider>
-    </IdentityProvider>
+    <AuthGate>
+      <IdentityProvider>
+        <EventClientProvider>
+          <PanelProvider panels={REACHY_PANELS}>
+            <Shell />
+          </PanelProvider>
+        </EventClientProvider>
+      </IdentityProvider>
+    </AuthGate>
   )
 }
 

@@ -18,9 +18,10 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
-    "build": "pnpm -r run build && node scripts/stamp-dist.mjs",
+    "build": "pnpm -r run build",
     "size:reachy": "node scripts/size-reachy.mjs",
-    "dist:pack": "node scripts/pack-dist.mjs"
+    "dist:pack": "node scripts/pack-dist.mjs",
+    "stamp": "node scripts/stamp-dist.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

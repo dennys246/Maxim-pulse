@@ -6,6 +6,7 @@ import type {
   ConsoleEvent,
   DiagnoseResponse,
   FacadeClient,
+  HelloResponse,
   MeshSetupRequest,
   ModelsResponse,
   ProbeRequest,
@@ -75,7 +76,17 @@ export class MockFacade implements FacadeClient {
     ],
     searched: ['/campaigns'],
   }
+  /**
+   * auth: 'none' — a mocked backend is sandbox-shaped: NO login screen ever
+   * renders over a MockFacade (the website Demo build rides this). Tests of
+   * the bearer flow override it.
+   */
+  greeting: HelloResponse = { contract_version: CONTRACT_VERSION, auth: 'none' }
   requests: Array<{ endpoint: string; body: unknown }> = []
+
+  async hello(): Promise<HelloResponse> {
+    return this.greeting
+  }
 
   async listModels(): Promise<ModelsResponse> {
     return this.models

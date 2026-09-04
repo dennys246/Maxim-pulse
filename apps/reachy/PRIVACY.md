@@ -66,6 +66,18 @@ no copy anywhere else, so nothing survives that deletion.
    serves is reachable from any browser on the same network. Treat the robot the
    way you would treat a smart speaker: fine on your home network, not on a
    public or shared one.
+
+   The Maxim page itself **does** require a sign-in token (it is what can run
+   Maxim, read its memory of you, and change where it thinks). The token lives
+   only on the robot, in a mode-`0600` file, and is created the first time the
+   app starts. **Anyone who can open the robot's dashboard and reach the app's
+   link is treated as the owner**: that dashboard already commands the robot,
+   so this adds no new way in — but it also adds no new lock. On the Pollen
+   software this app targets, the dashboard's ⚙️ link opens the page **without**
+   the token (the daemon cannot pass it), so you sign in once per browser by
+   pasting it; `maxim serve --show-token` on the robot prints it, and
+   `maxim serve --rotate-token` signs every browser out at once.
+
 2. **Cloud mode sends your words to a third party.** If you paste a provider
    key, your conversations are governed by that provider's policy, not by this
    app's. If that matters to you, use the mesh option — it is the default we

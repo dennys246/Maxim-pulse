@@ -7,7 +7,7 @@
 # This target versions on Pollen's SDK cadence (CLAUDE.md § Versioning).
 [project]
 name = "maxim-reachy-app"
-version = "0.1.0"
+version = "0.2.0"
 description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
 requires-python = ">=3.10"
 dependencies = []
@@ -18,6 +18,12 @@ Homepage = "https://pymaxim.bio"
 # docs site (what leaves the robot, what lands in ~/.maxim/, mesh-vs-cloud
 # data flow).
 Documentation = "https://docs.pymaxim.bio"
+
+# How Pollen's daemon discovers the app (`reachy_mini_apps` group). The entry
+# point NAME must equal the package directory: the wireless daemon reads
+# `<name>/main.py` for the `custom_app_url` literal at listing time.
+[project.entry-points."reachy_mini_apps"]
+maxim_reachy_app = "maxim_reachy_app.main:MaximReachyApp"
 
 [project.optional-dependencies]
 # console = maxim serve's FastAPI/uvicorn; reachy = the Pollen SDK pin.

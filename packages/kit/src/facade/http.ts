@@ -1,3 +1,4 @@
+import { AuthSession } from './auth'
 import { WsEventSource, type WsFactory } from './events'
 import type {
   CampaignsResponse,
@@ -6,6 +7,7 @@ import type {
   ConsoleEvent,
   DiagnoseResponse,
   FacadeClient,
+  HelloResponse,
   MeshSetupRequest,
   ModelsResponse,
   ProbeRequest,
@@ -34,6 +36,20 @@ export class FacadeError extends Error {
   }
 }
 
+/**
+ * A 401: the console token is missing or refused. Surfaced as AUTH STATE
+ * (the AuthSession is told, and the shell returns to the login screen) — this
+ * error exists so a component's generic catch can tell it apart from a real
+ * failure and stay quiet rather than paint an error the gate is about to
+ * replace.
+ */
+export class AuthError extends FacadeError {
+  constructor(detail: string, path: string) {
+    super(401, detail, path)
+    this.name = 'AuthError'
+  }
+}
+
 export interface HttpFacadeOptions {
   /**
    * Origin of `maxim serve`. Default '' = same origin, which is correct in
@@ -49,22 +65,49 @@ export interface HttpFacadeOptions {
    * surfaces should pass `{ tier: 'clean' }`.
    */
   subscribe?: SubscribeFrame
+  /**
+   * The credential the shell shares with its AuthGate. Default: a fresh
+   * localStorage-backed session (fine for a shell that never renders a login
+   * screen; a shell that does must pass the SAME session to both).
+   */
+  auth?: AuthSession
 }
 
 /**
  * HttpFacade — the real FacadeClient over `maxim serve` (127.0.0.1-only).
  * Methods map 1:1 to the pinned endpoints; all shapes come from the generated
  * contract. Events ride WsEventSource over /ws.
+ *
+ * CREDENTIALS (contract 0.4.0): every HTTP call carries
+ * `Authorization: Bearer <token>` when a token is held; /ws offers the
+ * `maxim.bearer.<token>` subprotocol beside `maxim-console-v1`. A 401 with a
+ * held token means the token is dead (rotated): it is reported to the
+ * AuthSession, which drops it — the stream suspends and the gate re-logins.
+ * Never a silent retry with a refused token.
  */
 export class HttpFacade implements FacadeClient {
+  readonly auth: AuthSession
   private baseUrl: string
   private fetchImpl: typeof fetch
   private events: WsEventSource
 
   constructor(options: HttpFacadeOptions = {}) {
     this.baseUrl = options.baseUrl ?? ''
-    this.fetchImpl = options.fetchImpl ?? fetch
-    this.events = new WsEventSource(() => this.wsUrl(), options.wsFactory, options.subscribe)
+    // Bound: a bare `fetch` called as a method (`this.fetchImpl(...)`) has
+    // `this` = the facade, and Chrome refuses that with "Illegal invocation".
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init))
+    this.auth = options.auth ?? new AuthSession()
+    this.events = new WsEventSource({
+      resolveUrl: () => this.wsUrl(),
+      wsFactory: options.wsFactory,
+      subscribe: options.subscribe,
+      resolveProtocols: () => this.auth.wsProtocols(),
+      onHandshakeRefused: () => void this.confirmCredentials(),
+    })
+    this.auth.subscribe(() => {
+      if (this.auth.canConnect()) this.events.resume()
+      else this.events.suspend()
+    })
   }
 
   private wsUrl(): string {
@@ -72,10 +115,30 @@ export class HttpFacade implements FacadeClient {
     return origin.replace(/^http/, 'ws') + '/ws'
   }
 
+  /**
+   * A refused /ws handshake looks the same from a browser whether the token
+   * was rotated, the origin was refused, or the server is down. Ask over
+   * HTTP: a 401 on the cheapest authed read is the rotation signal (and
+   * `request` routes it into the session); anything else is not an auth
+   * problem, so the source keeps backing off as usual.
+   */
+  private async confirmCredentials(): Promise<void> {
+    if (this.auth.token() === null) return
+    try {
+      await this.identity()
+    } catch {
+      /* 401 already reported by request(); other failures are not ours */
+    }
+  }
+
   private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+    const token = this.auth.token()
+    const headers: Record<string, string> = {}
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (token !== null) headers['Authorization'] = `Bearer ${token}`
     const response = await this.fetchImpl(this.baseUrl + path, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     if (!response.ok) {
@@ -93,9 +156,19 @@ export class HttpFacade implements FacadeClient {
       } catch {
         // non-JSON error body; keep statusText
       }
+      if (response.status === 401) {
+        // Only a token we actually SENT can be "rejected"; a tokenless 401
+        // is the gate's normal pre-login state, not a rotation.
+        if (token !== null && this.auth.token() === token) this.auth.reject()
+        throw new AuthError(detail, path)
+      }
       throw new FacadeError(response.status, detail, path)
     }
     return response.json() as Promise<T>
+  }
+
+  hello(): Promise<HelloResponse> {
+    return this.request('GET', '/api/hello')
   }
 
   listModels(): Promise<ModelsResponse> {
