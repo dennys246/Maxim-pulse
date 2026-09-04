@@ -23,7 +23,7 @@ pnpm typecheck     # tsc --noEmit
 # Tests — fully offline (facade client + maxim serve + Reachy SDK all mocked)
 pnpm test          # vitest
 
-# Build both targets; confirm the Reachy bundle stays lean (code-split guard)
+# Build both targets (each stamps its dist/maxim-ui.json); confirm the Reachy bundle stays lean
 pnpm build
 pnpm size:reachy   # assert heavy viz (react-flow/visx) is NOT in the on-device bundle
 
@@ -45,9 +45,25 @@ pnpm --filter @maxim/console dev   # Vite dev server → talks to maxim serve (o
 pnpm --filter @maxim/reachy-ui build
 ```
 
+- **Verify the token flow (contract 0.4.0).** `maxim serve` prints `http://127.0.0.1:<port>/#token=<t>`;
+  a cold load with no token must show the paste screen (naming `maxim serve --show-token`) and
+  touch only `/api/hello`; opening the printed URL signs the browser in (fragment stripped, token
+  in localStorage, `Authorization: Bearer` on every call, `/ws` offered with
+  `["maxim-console-v1", "maxim.bearer.<t>"]`); `maxim serve --rotate-token` mid-session must land
+  the next action on the paste screen with the rotation hint, never a silent retry loop. A
+  MockFacade (`auth: "none"`, the website Demo) must never render a login screen. The reference
+  semantics are pymaxim's `tests/unit/test_console_auth.py`; a browser e2e of the whole flow
+  (Playwright over a real `maxim serve`) is how it was verified — the CLI token is never in a URL
+  query, never logged.
 - **Verify SetupWizard writes real config.** After a mesh/cloud choice, confirm
   `~/.config/maxim/config.json` has a resolvable `lanes.large` placement and the key landed as a
   **ref** (file/keyring), never inline. "Test connection" calls the `PROBE` seam — don't hand-roll.
+- **Verify the Reachy handoff** (`apps/reachy`). The bootstrap calls pymaxim's
+  `device_console_handoff` BEFORE `build_app(extra_trusted_origins=…)`; every host the page is
+  reached by (`reachy.local` + detected IPs) must be admitted or the console 400s fail-closed.
+  Pollen's daemon (reachy_mini 1.8.x) reads `custom_app_url` by regex over `maxim_reachy_app/main.py`
+  at LISTING time — a literal, first match wins, never a runtime value — so the ⚙️ link lands on
+  the paste screen; `tests/test_app.py` pins that regex against the file.
 - **Verify session-end persists** (Reachy). On `stop_event`, confirm **full** session-end
   consolidation + `save_cerebellum()` fire and `~/.maxim/` grows. If it silently no-ops, the
   cross-session thesis is broken (AGENTS.md § execution flows).
@@ -77,6 +93,14 @@ pnpm --filter @maxim/reachy-ui build
   version-match client ↔ daemon after any reflash.
 - **Code-split:** heavy dashboard viz never enters the Reachy on-device bundle.
 - **Localhost-only:** `maxim serve` binds `127.0.0.1`.
+- **Bearer auth is always on (0.4.0):** every `/api/*`, `/docs`, `/openapi.json`, `/ws` 401s without
+  the console token; `GET /api/hello` is the ONE tokenless surface (`auth: "none"` = sandbox, no
+  login). The kit's `AuthSession` + `AuthGate` own the flow; `HttpFacade` carries the Bearer
+  header / ws subprotocol. A stored token can 401 at any time (rotation) — that is auth state
+  (`AuthError`), not a generic error.
+- **Every build path stamps `maxim-ui.json`:** each app's `build` script runs `stamp-dist.mjs
+--target <name>` after `vite build` (which empties dist/), so a per-package build never ships an
+  unstamped bundle (pymaxim's `check_ui_contract` reads it).
 
 ## Versioning
 

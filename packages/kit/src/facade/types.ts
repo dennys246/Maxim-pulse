@@ -26,6 +26,8 @@ export type SetupResult = components['schemas']['SetupResult']
 export type StoryMemory = components['schemas']['StoryMemory']
 export type Preference = components['schemas']['Preference']
 export type RecallResponse = components['schemas']['RecallResponse']
+/** GET /api/hello — the ONE tokenless surface: contract version + auth scheme. */
+export type HelloResponse = components['schemas']['HelloResponse']
 export type IdentityResponse = components['schemas']['IdentityResponse']
 export type SeamStatus = components['schemas']['SeamStatus']
 export type CampaignInfo = components['schemas']['CampaignInfo']
@@ -43,6 +45,11 @@ export type ConsoleEvent = components['schemas']['ConsoleEvent']
  * `maxim serve` facade endpoints; `on()` subscribes to the /ws event stream.
  */
 export interface FacadeClient {
+  /**
+   * GET /api/hello — reachable WITHOUT a token: which contract the server
+   * speaks and whether it demands one ("bearer") or is sandboxed ("none").
+   */
+  hello(): Promise<HelloResponse>
   /** GET /api/models */
   listModels(): Promise<ModelsResponse>
   /** GET /api/diagnose */

@@ -1,9 +1,9 @@
 {
   "name": "@maxim/kit",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Maxim shared UI kit (Layer 2) — components bind to pymaxim facades/seams, shipped as unbuilt source; consumers compile it with their own Vite.",
+  "description": "Maxim shared UI kit (Layer 2) \u2014 components bind to pymaxim facades/seams, shipped as unbuilt source; consumers compile it with their own Vite.",
   "exports": {
     ".": "./src/index.ts",
     "./viz": "./src/viz/index.ts",
@@ -14,7 +14,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "gen:facade": "openapi-typescript openapi.json -o src/facade/schema.ts && node ../../scripts/gen-contract-version.mjs",
-    "gen:facade:check": "openapi-typescript openapi.json -o node_modules/.schema-check.ts && diff -u src/facade/schema.ts node_modules/.schema-check.ts && node ../../scripts/gen-contract-version.mjs --check || (echo 'generated facade is stale — run pnpm gen:facade' && exit 1)"
+    "gen:facade:check": "openapi-typescript openapi.json -o node_modules/.schema-check.ts && diff -u src/facade/schema.ts node_modules/.schema-check.ts && node ../../scripts/gen-contract-version.mjs --check || (echo 'generated facade is stale \u2014 run pnpm gen:facade' && exit 1)"
   },
   "peerDependencies": {
     "react": "^19.0.0",

@@ -1,4 +1,5 @@
 import {
+  AuthGate,
   BackendChip,
   ChatSurface,
   ConnectionTest,
@@ -30,13 +31,18 @@ type OpenSurface = 'none' | 'models' | 'settings'
 
 export default function App() {
   return (
-    <IdentityProvider>
-      <EventClientProvider>
-        <PanelProvider panels={CORE_PANELS}>
-          <Shell />
-        </PanelProvider>
-      </EventClientProvider>
-    </IdentityProvider>
+    // The gate opens only once /api/hello has answered and, on a bearer
+    // server, the stored token verified — nothing below it touches the
+    // backend before then, and a rotated token drops back to the paste screen.
+    <AuthGate>
+      <IdentityProvider>
+        <EventClientProvider>
+          <PanelProvider panels={CORE_PANELS}>
+            <Shell />
+          </PanelProvider>
+        </EventClientProvider>
+      </IdentityProvider>
+    </AuthGate>
   )
 }
 

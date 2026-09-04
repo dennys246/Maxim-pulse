@@ -1,12 +1,12 @@
 {
   "name": "@maxim/console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Maxim Console — the localhost dashboard shell (Layer 3), served by pymaxim's `maxim serve`.",
+  "description": "Maxim Console \u2014 the localhost dashboard shell (Layer 3), served by pymaxim's `maxim serve`.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/stamp-dist.mjs --target console",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

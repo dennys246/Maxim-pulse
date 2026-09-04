@@ -29,4 +29,12 @@ export {
   type EventFilter,
 } from './facade/eventClient'
 export { IdentityProvider, useIdentity } from './facade/identity'
+export {
+  AuthGate,
+  AuthSessionProvider,
+  useAuthSession,
+  useAuthSnapshot,
+  type AuthGateProps,
+} from './components/AuthGate'
+export { LoginScreen, type LoginScreenProps } from './components/LoginScreen'
 export * from './facade'

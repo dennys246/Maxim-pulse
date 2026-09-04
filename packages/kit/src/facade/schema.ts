@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/hello": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contract + auth scheme (no token needed) */
+        get: operations["get_hello_api_hello_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/identity": {
         parameters: {
             query?: never;
@@ -302,6 +319,24 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HelloResponse
+         * @description The ONE unauthenticated API surface (hardening design A6).
+         *
+         *     Just enough for a tokenless client to detect contract skew and render the
+         *     right login screen: the contract version and the auth scheme this server
+         *     demands ("bearer", or "none" under sandbox mode where the proxy owns the
+         *     edge). Everything richer — identity, seams, git — stays behind auth.
+         */
+        HelloResponse: {
+            /**
+             * Auth
+             * @enum {string}
+             */
+            auth: "bearer" | "none";
+            /** Contract Version */
+            contract_version: string;
         };
         /**
          * IdentityResponse
@@ -588,6 +623,17 @@ export interface operations {
                     "application/json": components["schemas"]["CampaignsResponse"];
                 };
             };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
         };
     };
     get_diagnose_api_diagnose_get: {
@@ -606,6 +652,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiagnoseResponse"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
                 };
             };
         };
@@ -628,6 +685,17 @@ export interface operations {
                     "application/json": components["schemas"]["ConsoleEvent"];
                 };
             };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
         };
     };
     get_subscribe_frame_api_events_subscribe_frame_get: {
@@ -646,6 +714,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscribeFrame"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+        };
+    };
+    get_hello_api_hello_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HelloResponse"];
                 };
             };
         };
@@ -668,6 +767,17 @@ export interface operations {
                     "application/json": components["schemas"]["IdentityResponse"];
                 };
             };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
         };
     };
     get_models_api_models_get: {
@@ -686,6 +796,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelsResponse"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
                 };
             };
         };
@@ -710,6 +831,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProbeResult"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -741,6 +873,17 @@ export interface operations {
                     "application/json": components["schemas"]["RecallResponse"];
                 };
             };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
         };
     };
     post_run_api_run_post: {
@@ -763,6 +906,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunAccepted"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -798,6 +952,17 @@ export interface operations {
                     "application/json": components["schemas"]["SetupResult"];
                 };
             };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -829,6 +994,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupResult"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
                 };
             };
             /** @description Validation Error */

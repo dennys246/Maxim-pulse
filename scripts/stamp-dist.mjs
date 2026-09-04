@@ -25,14 +25,26 @@
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+
+// Paths resolve from THIS FILE, not the CWD: each app's own `build` script
+// runs this from inside the package directory (pnpm runs scripts there), so a
+// per-package `pnpm --filter @maxim/console build` stamps too. Stamping only
+// from the root `pnpm build` is how bundles shipped with NO maxim-ui.json —
+// `vite build` empties dist/, and any other build path never re-stamped.
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 export const TARGETS = [
   { name: 'console', dist: 'apps/console/dist', pkg: 'apps/console/package.json' },
   { name: 'reachy', dist: 'apps/reachy/ui/dist', pkg: 'apps/reachy/ui/package.json' },
-]
-const CONTRACT = 'packages/kit/openapi.json'
+].map((target) => ({
+  ...target,
+  dist: join(REPO_ROOT, target.dist),
+  pkg: join(REPO_ROOT, target.pkg),
+}))
+const CONTRACT = join(REPO_ROOT, 'packages/kit/openapi.json')
 
 function git(args) {
   try {
@@ -56,8 +68,8 @@ export const REQUIRED_STAMP_FIELDS = [
   'describe',
 ]
 
-/** Stamp every built target; returns the stamps written. */
-export function stampDists() {
+/** Stamp every built target (or just `only`); returns the stamps written. */
+export function stampDists(only) {
   const contractVersion = JSON.parse(readFileSync(CONTRACT, 'utf8')).info?.version ?? 'unknown'
   const commit = git(['rev-parse', '--short', 'HEAD']) || 'unknown'
   const commitDate = git(['log', '-1', '--format=%cd', '--date=iso-strict-local']) || null
@@ -67,6 +79,7 @@ export function stampDists() {
 
   const written = []
   for (const target of TARGETS) {
+    if (only != null && target.name !== only) continue
     if (!existsSync(join(target.dist, 'index.html'))) continue // not built; skip quietly
     const stamp = {
       target: target.name,
@@ -85,14 +98,27 @@ export function stampDists() {
   return written
 }
 
-// CLI: `node scripts/stamp-dist.mjs`
+// CLI: `node scripts/stamp-dist.mjs [--target console|reachy]`
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const written = stampDists()
+  const flag = process.argv.indexOf('--target')
+  const only = flag === -1 ? undefined : process.argv[flag + 1]
+  if (only != null && !TARGETS.some((target) => target.name === only)) {
+    console.error(
+      `stamp — unknown target ${only}; expected ${TARGETS.map((t) => t.name).join('|')}`,
+    )
+    process.exit(1)
+  }
+  const written = stampDists(only)
   if (written.length === 0) {
-    console.log('stamp — nothing built yet; run `pnpm build` first.')
+    console.error(
+      `stamp — nothing built${only != null ? ` for ${only}` : ''}; the build did not produce a dist.`,
+    )
+    process.exit(1)
   } else {
     for (const { target, stamp } of written) {
-      console.log(`stamp — ${target.dist}/maxim-ui.json (contract ${stamp.contract_version})`)
+      console.log(
+        `stamp — ${relative(REPO_ROOT, target.dist)}/maxim-ui.json (contract ${stamp.contract_version})`,
+      )
     }
   }
 }
