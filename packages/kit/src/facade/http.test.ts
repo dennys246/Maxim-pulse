@@ -102,7 +102,9 @@ test('non-2xx maps to FacadeError with the FastAPI detail (501 = seam not landed
 test('a held token rides every request as Authorization: Bearer — hello included', async () => {
   const fetchImpl = vi
     .fn()
-    .mockImplementation(async () => jsonResponse({ contract_version: '0.4.0', auth: 'bearer' }))
+    .mockImplementation(async () =>
+      jsonResponse({ contract_version: '0.5.0', auth: 'bearer', pairing: 'none' }),
+    )
   const facade = new HttpFacade({
     baseUrl: 'http://127.0.0.1:8765',
     fetchImpl,
@@ -127,7 +129,7 @@ test('a held token rides every request as Authorization: Bearer — hello includ
 test('no token → no Authorization header (never an empty Bearer)', async () => {
   const fetchImpl = vi
     .fn()
-    .mockResolvedValue(jsonResponse({ contract_version: '0.4.0', auth: 'bearer' }))
+    .mockResolvedValue(jsonResponse({ contract_version: '0.5.0', auth: 'bearer', pairing: 'none' }))
   const facade = new HttpFacade({ baseUrl: 'http://x', fetchImpl, auth: bearerSession(null) })
   await facade.hello()
   expect(fetchImpl).toHaveBeenCalledWith(

@@ -123,6 +123,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pair/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange the spoken code for the console token (single use; no token needed) */
+        post: operations["post_pair_claim_api_pair_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pair/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask the robot to speak a pairing code (device deployments only; no token needed) */
+        post: operations["post_pair_request_api_pair_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/probe": {
         parameters: {
             query?: never;
@@ -337,6 +371,12 @@ export interface components {
             auth: "bearer" | "none";
             /** Contract Version */
             contract_version: string;
+            /**
+             * Pairing
+             * @default none
+             * @enum {string}
+             */
+            pairing: "available" | "none";
         };
         /**
          * IdentityResponse
@@ -423,6 +463,36 @@ export interface components {
             groups: {
                 [key: string]: components["schemas"]["ModelInfoWire"][];
             };
+        };
+        /**
+         * PairClaimRequest
+         * @description The spoken code, typed by the owner into the paste screen.
+         *
+         *     ``max_length`` bounds the one pre-auth POST body on the server (review
+         *     fold); real codes are exactly six digits, the slack forgives pasted
+         *     whitespace.
+         */
+        PairClaimRequest: {
+            /** Code */
+            code: string;
+        };
+        /**
+         * PairClaimResult
+         * @description A successful claim: the console bearer token — handled and stored by
+         *     the client exactly as a ``/#token=`` fragment bootstrap would (the trust
+         *     statement itself is A9.1's, spoken-code pairing).
+         */
+        PairClaimResult: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * PairRequestAccepted
+         * @description POST /api/pair/request accepted — the code is ANNOUNCED, never returned.
+         */
+        PairRequestAccepted: {
+            /** Detail */
+            detail: string;
         };
         /**
          * PlatformWire
@@ -800,6 +870,125 @@ export interface operations {
             };
             /** @description Missing or invalid console token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+        };
+    };
+    post_pair_claim_api_pair_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PairClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairClaimResult"];
+                };
+            };
+            /** @description Wrong code (5 wrong attempts void the active code). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Pairing is not available on this deployment (no announcer). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description No active code — expired, consumed, or never announced. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Claims are paced (~1.5 s apart) — retry momentarily. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+        };
+    };
+    post_pair_request_api_pair_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairRequestAccepted"];
+                };
+            };
+            /** @description Pairing is not available on this deployment (no announcer). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description A code was announced within the last 10 s — listen, or retry shortly. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

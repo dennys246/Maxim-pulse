@@ -12,7 +12,7 @@ const TOKEN = 'mxc_' + 'k'.repeat(43)
 
 function bearerFacade() {
   const facade = new MockFacade()
-  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer' }
+  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer', pairing: 'none' }
   return facade
 }
 
@@ -99,7 +99,7 @@ test('a 401 AFTER sign-in (rotation mid-session) drops back to the paste screen 
 
 test('a mismatched contract_version shows the skew banner — on the shell and on the paste screen', async () => {
   const facade = new MockFacade()
-  facade.greeting = { contract_version: '9.9.9', auth: 'none' }
+  facade.greeting = { contract_version: '9.9.9', auth: 'none', pairing: 'none' }
   renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
   expect(await screen.findByText('the shell')).toBeInTheDocument()
   expect(screen.getByRole('alert')).toHaveTextContent(
@@ -107,7 +107,7 @@ test('a mismatched contract_version shows the skew banner — on the shell and o
   )
 
   const bearer = new MockFacade()
-  bearer.greeting = { contract_version: '9.9.9', auth: 'bearer' }
+  bearer.greeting = { contract_version: '9.9.9', auth: 'bearer', pairing: 'none' }
   render(
     <AuthSessionProvider session={new AuthSession({ store: new MemoryTokenStore() })}>
       <FacadeProvider facade={bearer}>

@@ -20,7 +20,7 @@ test('the Demo target guard: over a MockFacade the console NEVER renders a login
 
 test('against a bearer backend with no token the console is the paste screen and nothing else', async () => {
   const facade = new MockFacade()
-  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer' }
+  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer', pairing: 'none' }
   renderApp(facade)
   expect(await screen.findByText('Sign in to Maxim Console')).toBeInTheDocument()
   expect(screen.queryByLabelText('Say something to Maxim')).not.toBeInTheDocument()

@@ -1,6 +1,6 @@
 {
   "name": "@maxim/kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Maxim shared UI kit (Layer 2) \u2014 components bind to pymaxim facades/seams, shipped as unbuilt source; consumers compile it with their own Vite.",
