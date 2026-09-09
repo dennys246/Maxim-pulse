@@ -79,9 +79,10 @@ export class MockFacade implements FacadeClient {
   /**
    * auth: 'none' — a mocked backend is sandbox-shaped: NO login screen ever
    * renders over a MockFacade (the website Demo build rides this). Tests of
-   * the bearer flow override it.
+   * the bearer flow override it. `pairing` is the 0.5.0 device sign-in
+   * surface (spoken-code); a desktop `maxim serve` reports 'none'.
    */
-  greeting: HelloResponse = { contract_version: CONTRACT_VERSION, auth: 'none' }
+  greeting: HelloResponse = { contract_version: CONTRACT_VERSION, auth: 'none', pairing: 'none' }
   requests: Array<{ endpoint: string; body: unknown }> = []
 
   async hello(): Promise<HelloResponse> {
