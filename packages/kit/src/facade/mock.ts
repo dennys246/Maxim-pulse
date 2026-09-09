@@ -1,4 +1,5 @@
 import { CONTRACT_VERSION } from './contractVersion'
+import { FacadeError } from './http'
 import type {
   CampaignsResponse,
   IdentityResponse,
@@ -9,6 +10,8 @@ import type {
   HelloResponse,
   MeshSetupRequest,
   ModelsResponse,
+  PairClaimResult,
+  PairRequestAccepted,
   ProbeRequest,
   ProbeResult,
   RecallResponse,
@@ -87,6 +90,22 @@ export class MockFacade implements FacadeClient {
 
   async hello(): Promise<HelloResponse> {
     return this.greeting
+  }
+
+  /** The code a mocked device "speaks"; pairClaim accepts exactly this. */
+  pairCode = '123456'
+  /** Token handed out on a successful claim. */
+  pairToken = `mxc_${'p'.repeat(43)}`
+
+  async pairRequest(): Promise<PairRequestAccepted> {
+    this.requests.push({ endpoint: '/api/pair/request', body: null })
+    return { detail: 'Listen: the robot is speaking a 6-digit code.' }
+  }
+
+  async pairClaim(code: string): Promise<PairClaimResult> {
+    this.requests.push({ endpoint: '/api/pair/claim', body: { code } })
+    if (code !== this.pairCode) throw new FacadeError(403, 'Wrong code.', '/api/pair/claim')
+    return { token: this.pairToken }
   }
 
   async listModels(): Promise<ModelsResponse> {

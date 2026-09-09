@@ -9,6 +9,8 @@ import type {
   FacadeClient,
   HelloResponse,
   MeshSetupRequest,
+  PairClaimResult,
+  PairRequestAccepted,
   ModelsResponse,
   ProbeRequest,
   ProbeResult,
@@ -169,6 +171,16 @@ export class HttpFacade implements FacadeClient {
 
   hello(): Promise<HelloResponse> {
     return this.request('GET', '/api/hello')
+  }
+
+  pairRequest(): Promise<PairRequestAccepted> {
+    // Tokenless by design (A9.1). A body is required so the trust guard's
+    // Content-Type belt is satisfied on this POST.
+    return this.request('POST', '/api/pair/request', {})
+  }
+
+  pairClaim(code: string): Promise<PairClaimResult> {
+    return this.request('POST', '/api/pair/claim', { code })
   }
 
   listModels(): Promise<ModelsResponse> {
