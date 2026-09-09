@@ -161,3 +161,110 @@ test('a #token= fragment arriving on an already-open page (hashchange) signs in 
   expect(session.token()).toBe(TOKEN)
   expect(window.location.hash).toBe('') // stripped, never re-read or bookmarked
 })
+
+// ── A9.1 spoken-code pairing (contract 0.5.0) ────────────────────────────────
+
+function pairingFacade() {
+  const facade = bearerFacade()
+  facade.greeting = { contract_version: CONTRACT_VERSION, auth: 'bearer', pairing: 'available' }
+  return facade
+}
+
+test('a desktop backend (pairing "none") offers ONLY the paste path', async () => {
+  renderGate(bearerFacade(), new AuthSession({ store: new MemoryTokenStore() }))
+  expect(await screen.findByText('Sign in to Maxim Console')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Have the robot say a code' }),
+  ).not.toBeInTheDocument()
+  expect(screen.getByText('maxim serve --show-token')).toBeInTheDocument()
+})
+
+test('a device backend pairs by ear: ask → the robot speaks → the code signs in', async () => {
+  const facade = pairingFacade()
+  const session = new AuthSession({ store: new MemoryTokenStore() })
+  renderGate(facade, session)
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+
+  // the 202 copy comes from the server, so it matches what the robot just said
+  expect(await screen.findByText(/speaking a 6-digit code/)).toBeInTheDocument()
+  await userEvent.type(screen.getByLabelText('Spoken code'), facade.pairCode)
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+
+  expect(await screen.findByText('the shell')).toBeInTheDocument()
+  expect(session.token()).toBe(facade.pairToken) // stored exactly as a #token= would be
+  expect(facade.requests.map((r) => r.endpoint)).toEqual(['/api/pair/request', '/api/pair/claim'])
+})
+
+test('a wrong code keeps the claim box open and shows the server’s reason', async () => {
+  const facade = pairingFacade()
+  renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+  await userEvent.type(await screen.findByLabelText('Spoken code'), '000000')
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+
+  expect(await screen.findByText('Wrong code.')).toBeInTheDocument()
+  expect(screen.getByLabelText('Spoken code')).toBeInTheDocument() // still claimable
+  expect(screen.queryByText('the shell')).not.toBeInTheDocument()
+})
+
+test('a dead code (410) drops back to asking — a claim box the server cannot satisfy is a dead end', async () => {
+  const facade = pairingFacade()
+  facade.pairClaim = vi
+    .fn()
+    .mockRejectedValue(
+      new FacadeError(
+        410,
+        'No active pairing code — ask the robot to speak one.',
+        '/api/pair/claim',
+      ),
+    )
+  renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+  await userEvent.type(await screen.findByLabelText('Spoken code'), '123456')
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+
+  expect(await screen.findByText(/No active pairing code/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Have the robot say a code' })).toBeInTheDocument()
+  expect(screen.queryByLabelText('Spoken code')).not.toBeInTheDocument()
+})
+
+test('a 429 on the announce (a LAN prankster, or an impatient owner) keeps the ask button', async () => {
+  const facade = pairingFacade()
+  facade.pairRequest = vi
+    .fn()
+    .mockRejectedValue(
+      new FacadeError(
+        429,
+        'A code was just announced — listen, or retry shortly.',
+        '/api/pair/request',
+      ),
+    )
+  renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+
+  expect(await screen.findByText(/just announced/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Have the robot say a code' })).toBeEnabled()
+  expect(screen.queryByLabelText('Spoken code')).not.toBeInTheDocument()
+})
+
+test('a short code is refused client-side without spending a server attempt', async () => {
+  const facade = pairingFacade()
+  const claim = vi.spyOn(facade, 'pairClaim')
+  renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+  await userEvent.type(await screen.findByLabelText('Spoken code'), '123')
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+
+  expect(await screen.findByText('Enter the six digits you heard.')).toBeInTheDocument()
+  expect(claim).not.toHaveBeenCalled() // 5 wrong attempts burn the code — don't waste one
+})
+
+test('the token from a claim never reaches the DOM', async () => {
+  const facade = pairingFacade()
+  const { container } = renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+  await userEvent.type(await screen.findByLabelText('Spoken code'), facade.pairCode)
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+  expect(await screen.findByText('the shell')).toBeInTheDocument()
+  expect(container.innerHTML).not.toContain(facade.pairToken)
+})

@@ -174,6 +174,9 @@ export function AuthGate({ children }: AuthGateProps) {
         <LoginScreen
           rejected={rejected}
           onSubmit={(pasted) => session.setToken(pasted)}
+          // A 0.4.0 server sends no `pairing` at all — `=== 'available'` is
+          // the safe read, and every desktop `maxim serve` reports "none".
+          pairing={hello.pairing === 'available'}
           banner={skew !== null ? <SkewBanner server={skew} /> : null}
         />
       )

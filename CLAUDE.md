@@ -58,6 +58,14 @@ pnpm --filter @maxim/reachy-ui build
 - **Verify SetupWizard writes real config.** After a mesh/cloud choice, confirm
   `~/.config/maxim/config.json` has a resolvable `lanes.large` placement and the key landed as a
   **ref** (file/keyring), never inline. "Test connection" calls the `PROBE` seam — don't hand-roll.
+- **Verify spoken-code pairing (contract 0.5.0, A9.1).** Only DEVICE deployments offer it:
+  `/api/hello` reports `pairing: "available"` when `build_app` was given a `pairing_announcer`,
+  and the sign-in screen then shows the by-ear path beside the paste path. Drive it against a
+  real backend with a stub announcer (`build_app(dist, pairing_announcer=...)` writing the code
+  to a file) — the code must never reach the page, a wrong code must keep the box claimable, and
+  a correct code typed right after a wrong one must still sign in (the server paces claims
+  ~1.5 s apart, and the client retries a 429 exactly once because a paced claim provably burns
+  no attempt). A plain `maxim serve` reports `"none"` and must show no pairing UI at all.
 - **Verify the Reachy handoff** (`apps/reachy`). The bootstrap calls pymaxim's
   `device_console_handoff` BEFORE `build_app(extra_trusted_origins=…)`; every host the page is
   reached by (`reachy.local` + detected IPs) must be admitted or the console 400s fail-closed.

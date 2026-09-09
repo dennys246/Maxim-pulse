@@ -70,13 +70,26 @@ no copy anywhere else, so nothing survives that deletion.
    The Maxim page itself **does** require a sign-in token (it is what can run
    Maxim, read its memory of you, and change where it thinks). The token lives
    only on the robot, in a mode-`0600` file, and is created the first time the
-   app starts. **Anyone who can open the robot's dashboard and reach the app's
-   link is treated as the owner**: that dashboard already commands the robot,
-   so this adds no new way in — but it also adds no new lock. On the Pollen
-   software this app targets, the dashboard's ⚙️ link opens the page **without**
-   the token (the daemon cannot pass it), so you sign in once per browser by
-   pasting it; `maxim serve --show-token` on the robot prints it, and
-   `maxim serve --rotate-token` signs every browser out at once.
+   app starts.
+
+   **How you sign in: the robot says a code out loud.** Press the button on the
+   sign-in page and the robot speaks six digits; type them in within two
+   minutes and that browser is signed in for good. The code is single-use, and
+   five wrong guesses void it. What this does and does not protect:
+
+   - **Being in earshot is the lock.** Anyone who can hear the robot and reach
+     the page on your network can sign in — a housemate, an office neighbour,
+     someone by an open window. If a code you asked for gets claimed by someone
+     else first, you will see "no active code" rather than a sign-in.
+   - **Do not pair on camera.** The code is a secret spoken aloud, so a live
+     stream, a video call, a recording, or a smart speaker in the room leaks it
+     in real time. Ask for the code when you are not broadcasting.
+   - **Someone on your network can be a nuisance.** They can keep asking the
+     robot to say new codes, which replaces yours. That is annoying, never a
+     break-in, and always audible. If it happens, read the token directly on
+     the robot with `maxim serve --show-token` and paste it instead.
+   - **Rotating signs everyone out.** `maxim serve --rotate-token` on the robot
+     invalidates every browser at once, which is how you revoke access.
 
 2. **Cloud mode sends your words to a third party.** If you paste a provider
    key, your conversations are governed by that provider's policy, not by this

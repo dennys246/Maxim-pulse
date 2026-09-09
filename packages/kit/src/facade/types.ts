@@ -28,6 +28,11 @@ export type Preference = components['schemas']['Preference']
 export type RecallResponse = components['schemas']['RecallResponse']
 /** GET /api/hello — the ONE tokenless surface: contract version + auth scheme. */
 export type HelloResponse = components['schemas']['HelloResponse']
+/** POST /api/pair/request — 202; the code is ANNOUNCED, never returned. */
+export type PairRequestAccepted = components['schemas']['PairRequestAccepted']
+export type PairClaimRequest = components['schemas']['PairClaimRequest']
+/** POST /api/pair/claim — the spoken code exchanged for the console token. */
+export type PairClaimResult = components['schemas']['PairClaimResult']
 export type IdentityResponse = components['schemas']['IdentityResponse']
 export type SeamStatus = components['schemas']['SeamStatus']
 export type CampaignInfo = components['schemas']['CampaignInfo']
@@ -50,6 +55,18 @@ export interface FacadeClient {
    * speaks and whether it demands one ("bearer") or is sandboxed ("none").
    */
   hello(): Promise<HelloResponse>
+  /**
+   * POST /api/pair/request — ask the DEVICE to speak a 6-digit code
+   * (tokenless, 202). Only device deployments register an announcer; every
+   * plain `maxim serve` refuses 409. The code is never in the response.
+   */
+  pairRequest(): Promise<PairRequestAccepted>
+  /**
+   * POST /api/pair/claim — exchange the spoken code for the console token
+   * (tokenless, single use). The result carries a live credential: hand it
+   * straight to the AuthSession, never to a log or a URL.
+   */
+  pairClaim(code: string): Promise<PairClaimResult>
   /** GET /api/models */
   listModels(): Promise<ModelsResponse>
   /** GET /api/diagnose */
