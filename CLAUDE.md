@@ -92,6 +92,13 @@ pnpm --filter @maxim/reachy-ui build
 
 - **Three layers:** pymaxim facades/seams (L1, not here) → shared kit (L2) → Console + Reachy
   shells (L3). Every component binds to a facade/seam, never a back-channel.
+- **One console, many devices.** The kit owns the shell (`ConsoleApp` / `bootConsole`: auth,
+  providers, top bar, chat core, rails, drawers). A device is a `DeviceProfile` in its app
+  (`apps/console/src/profile.tsx`, `apps/reachy/ui/src/profile.tsx`): panels, stream filter, rails,
+  top-bar actions, links, drawers. Fix shell behaviour once in the kit, never per app. A surface that
+  needs a newer backend declares `requires: [seam]` and shows its `missing` text when the backend
+  lacks the seam (strict `hasSeam`) — never a blank panel. A new device = a new profile + its build
+  config + its own size budget.
 - **Stack:** React + TS / Vite; backend is pymaxim `maxim serve` (JSON + WebSocket). Viz:
   react-flow + visx on shadcn/ui or Mantine.
 - **LLM routing:** 3 destinations, one is cloud (mesh-LAN / mesh-tunnel / cloud), all via
