@@ -38,3 +38,4 @@ export {
 } from './components/AuthGate'
 export { LoginScreen, type LoginScreenProps } from './components/LoginScreen'
 export * from './facade'
+export * from './shell'

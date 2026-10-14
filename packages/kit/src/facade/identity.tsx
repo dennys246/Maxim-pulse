@@ -15,9 +15,21 @@ interface IdentityValue {
   identity: IdentityResponse | null
   /** Unknown seams read as LIVE: an older backend shouldn't disable the UI. */
   isSeamLive: (name: string) => boolean
+  /**
+   * STRICT: the backend declares the seam AND it is live. For surfaces that
+   * arrived with a newer contract: an older backend (or one still loading its
+   * identity) has no such seam, and the surface must say so rather than call
+   * an endpoint that is not there. `isSeamLive` is the lenient read for
+   * features every backend has always had.
+   */
+  hasSeam: (name: string) => boolean
 }
 
-const IdentityContext = createContext<IdentityValue>({ identity: null, isSeamLive: () => true })
+const IdentityContext = createContext<IdentityValue>({
+  identity: null,
+  isSeamLive: () => true,
+  hasSeam: () => false,
+})
 
 export function IdentityProvider({ children }: { children: ReactNode }) {
   const facade = useFacade()
@@ -38,13 +50,18 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     }
   }, [facade])
 
+  const hasSeam = (name: string) =>
+    identity?.seams?.some((entry) => entry.name === name && entry.live) ?? false
+
   const isSeamLive = (name: string) => {
     const seam = identity?.seams?.find((entry) => entry.name === name)
     return seam == null ? true : seam.live
   }
 
   return (
-    <IdentityContext.Provider value={{ identity, isSeamLive }}>{children}</IdentityContext.Provider>
+    <IdentityContext.Provider value={{ identity, isSeamLive, hasSeam }}>
+      {children}
+    </IdentityContext.Provider>
   )
 }
 
