@@ -18,10 +18,11 @@ reachy_mini 1.8.3, ``apps/sources/local_common_venv.py`` + the dashboard's
   Host/Origin guard.
 
 Consequence for sign-in: this link cannot carry a token minted at runtime, so
-on-device the ⚙️ link lands on the console's paste screen. ``app.py`` still
-sets the tokened handoff URL on the instance for any SDK that reads it. The
-sign-in token itself comes from ``maxim serve --show-token`` on the robot (or
-the pymaxim-side decision that supersedes this note).
+on-device the ⚙️ link lands on the console's sign-in screen. There the owner
+asks the robot to SAY a one-use code and types it in (spoken-code pairing,
+A9.1 — ``app.py`` registers the announcer); ``maxim serve --show-token`` over
+SSH stays the fallback. ``app.py`` still sets the tokened handoff URL on the
+instance for any SDK that reads it.
 """
 
 from __future__ import annotations

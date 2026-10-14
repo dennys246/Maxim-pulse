@@ -71,7 +71,13 @@ pnpm --filter @maxim/reachy-ui build
   reached by (`reachy.local` + detected IPs) must be admitted or the console 400s fail-closed.
   Pollen's daemon (reachy_mini 1.8.x) reads `custom_app_url` by regex over `maxim_reachy_app/main.py`
   at LISTING time — a literal, first match wins, never a runtime value — so the ⚙️ link lands on
-  the paste screen; `tests/test_app.py` pins that regex against the file.
+  the sign-in screen; `tests/test_app.py` pins that regex against the file. Sign-in on-device is
+  the spoken code: the bootstrap wires `make_pairing_announcer(TTSEngine(),
+make_device_speak_sink(reachy_mini))` into `build_app` — wiring only, the sink owns the int16 →
+  float32 conversion the SDK needs (raw int16 into `push_audio_sample` is noise). The robot extra
+  must pull pymaxim's `tts` extra (piper-tts), and the Piper voice model must exist under
+  `model_dir()/tts` — without either the announcer fails silently while the page says "listen".
+  Verify on the real robot that the code is AUDIBLE and intelligible; offline tests cannot.
 - **Verify session-end persists** (Reachy). On `stop_event`, confirm **full** session-end
   consolidation + `save_cerebellum()` fire and `~/.maxim/` grows. If it silently no-ops, the
   cross-session thesis is broken (AGENTS.md § execution flows).
