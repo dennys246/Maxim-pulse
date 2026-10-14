@@ -1,12 +1,18 @@
 import { AuthSession } from './auth'
 import { WsEventSource, type WsFactory } from './events'
+
+/** The opt-in /ws kinds (contract 0.6.0). Host samples, never run events. */
+export const HEALTH_KINDS = ['health', 'health_stall'] as const
 import type {
   CampaignsResponse,
   IdentityResponse,
   CloudSetupRequest,
   ConsoleEvent,
   DiagnoseResponse,
+  ActionPage,
+  DegradedResponse,
   FacadeClient,
+  HealthResponse,
   HelloResponse,
   MeshSetupRequest,
   PairClaimResult,
@@ -16,6 +22,8 @@ import type {
   ProbeResult,
   RecallResponse,
   RunAccepted,
+  RunPage,
+  RunReport,
   RunRequest,
   SetupResult,
   SubscribeFrame,
@@ -73,6 +81,11 @@ export interface HttpFacadeOptions {
    * screen; a shell that does must pass the SAME session to both).
    */
   auth?: AuthSession
+  /**
+   * Ask a 0.6.0+ server for the live health stream (`health`, `health_stall`),
+   * once the connection's identity frame shows the `health` seam live.
+   */
+  liveHealth?: boolean
 }
 
 /**
@@ -105,6 +118,7 @@ export class HttpFacade implements FacadeClient {
       subscribe: options.subscribe,
       resolveProtocols: () => this.auth.wsProtocols(),
       onHandshakeRefused: () => void this.confirmCredentials(),
+      optIn: options.liveHealth ? { kinds: [...HEALTH_KINDS], whenSeamLive: 'health' } : undefined,
     })
     this.auth.subscribe(() => {
       if (this.auth.canConnect()) this.events.resume()
@@ -131,6 +145,19 @@ export class HttpFacade implements FacadeClient {
     } catch {
       /* 401 already reported by request(); other failures are not ours */
     }
+  }
+
+  /** `path` + a query string from the defined values only. */
+  private static withQuery(
+    path: string,
+    query: Record<string, string | number | undefined>,
+  ): string {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) params.set(key, String(value))
+    }
+    const qs = params.toString()
+    return qs === '' ? path : `${path}?${qs}`
   }
 
   private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
@@ -181,6 +208,34 @@ export class HttpFacade implements FacadeClient {
 
   pairClaim(code: string): Promise<PairClaimResult> {
     return this.request('POST', '/api/pair/claim', { code })
+  }
+
+  listRuns(page: { cursor?: string; limit?: number } = {}): Promise<RunPage> {
+    return this.request('GET', HttpFacade.withQuery('/api/runs', page))
+  }
+
+  getRun(sessionId: string): Promise<RunReport> {
+    // Encoded as one path segment; the SERVER validates the id (an unknown or
+    // hostile one is a 404, never a path).
+    return this.request('GET', `/api/runs/${encodeURIComponent(sessionId)}`)
+  }
+
+  listActions(
+    sessionId: string,
+    page: { cursor?: string; limit?: number } = {},
+  ): Promise<ActionPage> {
+    return this.request(
+      'GET',
+      HttpFacade.withQuery(`/api/runs/${encodeURIComponent(sessionId)}/actions`, page),
+    )
+  }
+
+  health(since?: number): Promise<HealthResponse> {
+    return this.request('GET', HttpFacade.withQuery('/api/health', { since }))
+  }
+
+  degraded(since?: number): Promise<DegradedResponse> {
+    return this.request('GET', HttpFacade.withQuery('/api/health/degraded', { since }))
   }
 
   listModels(): Promise<ModelsResponse> {

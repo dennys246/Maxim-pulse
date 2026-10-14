@@ -3,6 +3,7 @@ import { AuthGate } from '../components/AuthGate'
 import { BackendChip } from '../components/BackendChip'
 import { ChatSurface } from '../components/ChatSurface'
 import { LiveStatusChip } from '../components/LiveStatusChip'
+import { HealthStrip } from '../components/logs/HealthViews'
 import { PanelProvider, PanelRail, usePanelDock } from '../components/PanelDock'
 import { TurnStatus } from '../components/TurnStatus'
 import { Drawer } from '../design/Drawer'
@@ -61,10 +62,24 @@ export function useSelectedModel() {
   return useContext(SelectedModelContext)
 }
 
-/** True when every seam a surface requires is declared live (strict). */
-function useSeamsMet(requirement: SeamRequirement): boolean {
-  const { hasSeam } = useIdentity()
-  return (requirement.requires ?? []).every(hasSeam)
+/**
+ * Why a surface cannot render, or null when every required seam is live.
+ * A seam the server DECLARES but reports not live carries the server's own
+ * reason ("closed in sandbox mode", "this server is not sampling health"); a
+ * seam it does not declare at all means an older backend.
+ */
+function useUnmetReason(requirement: SeamRequirement): string | null {
+  const { identity, hasSeam } = useIdentity()
+  for (const name of requirement.requires ?? []) {
+    if (hasSeam(name)) continue
+    const declared = identity?.seams?.find((seam) => seam.name === name)
+    if (declared?.detail != null) return declared.detail
+    return (
+      requirement.missing ??
+      'This needs a newer Maxim backend than the one this console is talking to.'
+    )
+  }
+  return null
 }
 
 function ConsoleShell({ profile }: { profile: DeviceProfile }) {
@@ -103,6 +118,8 @@ function ConsoleShell({ profile }: { profile: DeviceProfile }) {
         }
       />
 
+      {profile.health === true && <HealthStrip />}
+
       {/* the terminal's two-column body, generalized: rails flank the chat core */}
       <main className="flex min-h-0 flex-1 flex-row">
         {profile.rails.left && <PanelRail side="left" />}
@@ -113,7 +130,13 @@ function ConsoleShell({ profile }: { profile: DeviceProfile }) {
       </main>
 
       {profile.drawers.map((drawer) => (
-        <Drawer key={drawer.id} open={open === drawer.id} title={drawer.title} onClose={close}>
+        <Drawer
+          key={drawer.id}
+          open={open === drawer.id}
+          title={drawer.title}
+          onClose={close}
+          wide={drawer.wide === true}
+        >
           {/* Drawer renders nothing while closed, so a drawer's content mounts on open. */}
           <Gated requirement={drawer}>{drawer.render(close)}</Gated>
         </Drawer>
@@ -142,12 +165,11 @@ export function Gated({
   requirement: SeamRequirement
   children: ReactNode
 }) {
-  const met = useSeamsMet(requirement)
-  if (met) return <>{children}</>
+  const reason = useUnmetReason(requirement)
+  if (reason === null) return <>{children}</>
   return (
     <p role="status" className="text-sm text-fg-muted">
-      {requirement.missing ??
-        'This needs a newer Maxim backend than the one this console is talking to.'}
+      {reason}
     </p>
   )
 }

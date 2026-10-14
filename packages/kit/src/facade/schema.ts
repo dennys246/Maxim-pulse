@@ -72,6 +72,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** This server's health: latest snapshot, stalls and a downsampled series */
+        get: operations["get_health_api_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/degraded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** swallowed_exception fires grouped by site — what degraded silently */
+        get: operations["get_health_degraded_api_health_degraded_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/hello": {
         parameters: {
             query?: never;
@@ -208,6 +242,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Past runs, newest first (read-only) */
+        get: operations["get_runs_api_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One run's report (never its substrate files)
+         * @description ``session_id`` is the SIM session id (the sim_reports dir name), not the
+         *     console's own run id — the two share a format. The join from a console run
+         *     is the /ws ``run`` event's ``sim_session_id``.
+         */
+        get: operations["get_run_api_runs__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{session_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One run's actions in order, with per-action credit where recorded */
+        get: operations["get_run_actions_api_runs__session_id__actions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/setup/cloud": {
         parameters: {
             query?: never;
@@ -246,6 +336,79 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionPage */
+        ActionPage: {
+            /** Actions */
+            actions: components["schemas"]["ActionRecord"][];
+            /**
+             * Available
+             * @description False = this run recorded no actions file (aborted, or a talk/rest run).
+             */
+            available: boolean;
+            /**
+             * Format Version
+             * @description actions.jsonl header version; per-action credit exists from 1.2.
+             */
+            format_version?: string | null;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Skipped
+             * @description Malformed or oversized lines skipped on this page.
+             * @default 0
+             */
+            skipped: number;
+        };
+        /**
+         * ActionRecord
+         * @description One ``actions.jsonl`` line. Credit fields are null when the line predates them.
+         */
+        ActionRecord: {
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Block Reason */
+            block_reason?: string | null;
+            /** Blocked */
+            blocked?: boolean | null;
+            /**
+             * Credit Recorded
+             * @description True when the run's actions file records per-action credit (format 1.2+). False = unknown, not zero: runs written before the 1.2 writer read False.
+             * @default false
+             */
+            credit_recorded: boolean;
+            /** Entity Class */
+            entity_class?: string | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Nac Failure Booked
+             * @description The signature the tool-pain bridge booked this failure under (dispatch then skipped its own).
+             */
+            nac_failure_booked?: string | null;
+            /** Output */
+            output?: string | null;
+            /** Pain */
+            pain?: number | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Rpe
+             * @description ToolOutput.rpe — the surprise.
+             */
+            rpe?: number | null;
+            /** Success */
+            success?: boolean | null;
+            /** Timestamp */
+            timestamp?: number | null;
+            /** Tool */
+            tool?: string | null;
+        };
         /**
          * CampaignInfo
          * @description One discoverable campaign — backs the launcher's picker dropdown.
@@ -327,6 +490,42 @@ export interface components {
             /** Ts */
             ts: number;
         };
+        /**
+         * DegradedResponse
+         * @description Stage-1 sites only (the explicit `exc=`/`operation=` form carries no event).
+         */
+        DegradedResponse: {
+            /**
+             * Counted Since
+             * @description Counts cover fires from this time on (the log's retained window).
+             */
+            counted_since?: number | null;
+            /** Since */
+            since: number;
+            /** Sites */
+            sites: components["schemas"]["DegradedSite"][];
+        };
+        /**
+         * DegradedSite
+         * @description ``swallowed_exception`` fires grouped by site — the "degraded silently" signal.
+         */
+        DegradedSite: {
+            /** Count */
+            count: number;
+            /** Exc Type */
+            exc_type?: string | null;
+            /** First Seen */
+            first_seen: number;
+            /** Last Seen */
+            last_seen: number;
+            /**
+             * Sample
+             * @description One exception message, truncated to 300 chars.
+             */
+            sample?: string | null;
+            /** Site */
+            site: string;
+        };
         /** DiagnoseResponse */
         DiagnoseResponse: {
             platform?: components["schemas"]["PlatformWire"];
@@ -353,6 +552,58 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthRecord */
+        HealthRecord: {
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "health" | "health_stall";
+            /** Ts */
+            ts: number;
+        };
+        /**
+         * HealthResponse
+         * @description The console process's health: latest snapshot, stalls and a downsampled series.
+         *
+         *     Snapshots are allow-listed (gpu, cpu, memory, disk, lanes, loop): never
+         *     network interfaces, Wi-Fi identity, hostnames or paths.
+         */
+        HealthResponse: {
+            /**
+             * Dropped Records
+             * @description Records this server could not persist (a full queue, a busy lock, a failed write). Nonzero = gaps.
+             * @default 0
+             */
+            dropped_records: number;
+            /** Latest */
+            latest?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Monitoring
+             * @description False = this server is not sampling health (build_app without the monitor).
+             */
+            monitoring: boolean;
+            /**
+             * Recorded Since
+             * @description Earliest record this view covers; null = nothing recorded yet.
+             */
+            recorded_since?: number | null;
+            /** Series */
+            series?: components["schemas"]["HealthRecord"][];
+            /**
+             * Stall Detection
+             * @description False = stalls CANNOT be detected here (the agent loop registers no loop-state hook yet), so an empty `stalls` means unknown, not healthy.
+             */
+            stall_detection: boolean;
+            /** Stalls */
+            stalls?: components["schemas"]["HealthRecord"][];
         };
         /**
          * HelloResponse
@@ -589,6 +840,80 @@ export interface components {
              */
             status: "started" | "completed" | "rejected";
         };
+        /** RunPage */
+        RunPage: {
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Runs */
+            runs: components["schemas"]["RunSummary"][];
+        };
+        /**
+         * RunReport
+         * @description A named subset of ``SimulationReport`` — never the substrate (``aut_*``) files.
+         */
+        RunReport: {
+            /** Aut Model */
+            aut_model?: string | null;
+            /** Blocked Actions */
+            blocked_actions?: number | null;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Duration S */
+            duration_s?: number | null;
+            /**
+             * Ended At
+             * @description End epoch, from report.timestamp (the build time, written as local time).
+             */
+            ended_at?: number | null;
+            /** Fear Blocks Count */
+            fear_blocks_count?: number | null;
+            /** Finish Reason */
+            finish_reason?: string | null;
+            /** Format Version */
+            format_version?: string | null;
+            /** Goal */
+            goal?: string | null;
+            /** Language Model */
+            language_model?: string | null;
+            /** Latency P50 Ms */
+            latency_p50_ms?: number | null;
+            /** Latency P99 Ms */
+            latency_p99_ms?: number | null;
+            /** Learn Events Count */
+            learn_events_count?: number | null;
+            /** Llm Finish Status */
+            llm_finish_status?: string | null;
+            /** Llm Finish Summary */
+            llm_finish_summary?: string | null;
+            /** Llm Summary */
+            llm_summary?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Pain Events Count */
+            pain_events_count?: number | null;
+            /** Response Texts */
+            response_texts?: string[];
+            /** Session Id */
+            session_id: string;
+            /** Started At */
+            started_at?: number | null;
+            /** Tool Success Rates */
+            tool_success_rates?: {
+                [key: string]: number;
+            };
+            /** Tool Usage */
+            tool_usage?: {
+                [key: string]: number;
+            };
+            /** Total Actions */
+            total_actions?: number | null;
+            /** Total Input Tokens */
+            total_input_tokens?: number | null;
+            /** Total Output Tokens */
+            total_output_tokens?: number | null;
+            /** Turns */
+            turns?: number | null;
+        };
         /** RunRequest */
         RunRequest: {
             /** Campaign */
@@ -600,6 +925,35 @@ export interface components {
              * @enum {string}
              */
             mode: "talk" | "adventure" | "sim" | "rest";
+        };
+        /**
+         * RunSummary
+         * @description One row of the run list. ``has_report`` False = an aborted run dir.
+         */
+        RunSummary: {
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Duration S */
+            duration_s?: number | null;
+            /** Finish Reason */
+            finish_reason?: string | null;
+            /** Goal */
+            goal?: string | null;
+            /** Has Report */
+            has_report: boolean;
+            /** Mode */
+            mode?: string | null;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Started At
+             * @description Start epoch: report.ts if present, else parsed from a %Y%m%d_%H%M%S id, else null.
+             */
+            started_at?: number | null;
+            /** Total Actions */
+            total_actions?: number | null;
+            /** Turns */
+            turns?: number | null;
         };
         /**
          * SeamStatus
@@ -642,9 +996,15 @@ export interface components {
          *     Semantics: axes AND together; within the subsystem axis, ``channels`` and
          *     ``kinds`` union. ``tier`` passes events whose tier ≤ the requested tier
          *     (requesting "clean" = headline only; "debug" = everything). No frame (or
-         *     all-None) = everything. Meta-kinds (heartbeat/run/dropped and the agent's
-         *     "display" suggestions) bypass filtering — they carry stream/UI state, not
-         *     subsystem traffic.
+         *     all-None) = every ordinary event. Meta-kinds (heartbeat/run/dropped and the
+         *     agent's "display" suggestions) bypass filtering — they carry stream/UI
+         *     state, not subsystem traffic.
+         *
+         *     OPT-IN kinds (0.6.0: ``health``, ``health_stall``) are never sent unless
+         *     named in ``kinds``, and naming them ADDS them rather than filtering:
+         *     ``{"kinds": ["health"]}`` = every ordinary event plus health;
+         *     ``{"tier": "clean", "kinds": ["health"]}`` = the clean tier plus health.
+         *     Only the ordinary kinds in ``kinds`` narrow the stream.
          *
          *     OpenAPI does not model WS payloads, so ``GET /events/subscribe-frame``
          *     documents this shape for type-gen (same trick as ``/events/envelope``).
@@ -795,6 +1155,90 @@ export interface operations {
                     "application/json": {
                         detail?: string;
                     };
+                };
+            };
+        };
+    };
+    get_health_api_health_get: {
+        parameters: {
+            query?: {
+                since?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_health_degraded_api_health_degraded_get: {
+        parameters: {
+            query?: {
+                since?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DegradedResponse"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1095,6 +1539,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunAccepted"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_runs_api_runs_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunPage"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_api_runs__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunReport"];
+                };
+            };
+            /** @description Missing or invalid console token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_actions_api_runs__session_id__actions_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionPage"];
                 };
             };
             /** @description Missing or invalid console token. */

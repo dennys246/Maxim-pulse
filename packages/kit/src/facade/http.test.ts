@@ -338,3 +338,69 @@ test('onHandshakeRefused fires only for a close BEFORE open; suspend() stops the
     vi.useRealTimers()
   }
 })
+
+// ── the live-health opt-in (contract 0.6.0) ─────────────────────────────────
+
+function identityFrame(seams: Array<{ name: string; live: boolean }>) {
+  return wireEvent('identity', { tier: 'clean', data: { contract_version: '0.6.0', seams } })
+}
+
+test('live health is requested ONLY after the identity frame declares the health seam live', () => {
+  const auth = bearerSession()
+  const facade = new HttpFacade({
+    baseUrl: 'http://x',
+    wsFactory: fakeWsFactory,
+    auth,
+    liveHealth: true,
+  })
+  facade.on('*', () => {})
+  const ws = FakeWs.instances[0]!
+  ws.open()
+  expect(ws.sent).toEqual([]) // nothing before identity: no base frame, and no blind opt-in
+  ws.receive(identityFrame([{ name: 'health', live: true }]))
+  expect(ws.sent).toEqual(['{"kinds":["health","health_stall"]}'])
+})
+
+test('a 0.5.0 backend never receives the opt-in — it would read `kinds` as a filter and starve the stream', () => {
+  const auth = bearerSession()
+  const facade = new HttpFacade({
+    baseUrl: 'http://x',
+    wsFactory: fakeWsFactory,
+    auth,
+    liveHealth: true,
+  })
+  facade.on('*', () => {})
+  const ws = FakeWs.instances[0]!
+  ws.open()
+  ws.receive(identityFrame([{ name: 'talk', live: true }])) // no health seam
+  ws.receive(identityFrame([{ name: 'health', live: true }])) // only the FIRST identity counts
+  expect(ws.sent).toEqual([])
+})
+
+test('the opt-in keeps the base filter: the robot asks for the clean tier PLUS health', () => {
+  const auth = bearerSession()
+  const facade = new HttpFacade({
+    baseUrl: 'http://x',
+    wsFactory: fakeWsFactory,
+    auth,
+    subscribe: { tier: 'clean' },
+    liveHealth: true,
+  })
+  facade.on('*', () => {})
+  const ws = FakeWs.instances[0]!
+  ws.open()
+  ws.receive(identityFrame([{ name: 'health', live: true }]))
+  expect(ws.sent).toEqual([
+    '{"tier":"clean"}',
+    '{"tier":"clean","kinds":["health","health_stall"]}',
+  ])
+})
+
+test('health samples are remembered, never buffered as history', async () => {
+  const { EventHub } = await import('./eventClient')
+  const hub = new EventHub()
+  hub.ingest(wireEvent('health', { tier: 'clean', data: { cpu: { usage_pct: 5 } } }))
+  hub.ingest(wireEvent('nac'))
+  expect(hub.buffer().map((e) => e.kind)).toEqual(['nac'])
+  expect(hub.health?.data).toEqual({ cpu: { usage_pct: 5 } })
+})

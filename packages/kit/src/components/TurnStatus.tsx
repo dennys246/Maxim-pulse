@@ -18,6 +18,8 @@ const THINKING_AFTER_MS = 4_000
 type RunPhase =
   { phase: 'idle' } | { phase: 'running'; lastEventAt: number } | { phase: 'ended'; detail: string }
 
+const NOT_TURN_PROGRESS = new Set(['heartbeat', 'health', 'health_stall'])
+
 export function TurnStatus() {
   const hub = useEventClient()
   const [run, setRun] = useState<RunPhase>({ phase: 'idle' })
@@ -38,8 +40,9 @@ export function TurnStatus() {
             const error = typeof event.data?.error === 'string' ? event.data.error : 'failed'
             setRun({ phase: 'ended', detail: `run failed · ${error}` })
           }
-        } else if (event.kind !== 'heartbeat') {
-          // any real event proves the turn is moving
+        } else if (!NOT_TURN_PROGRESS.has(event.kind)) {
+          // any real event proves the turn is moving — but neither the
+          // keep-alive nor a host health sample (contract 0.6.0) is one
           setRun((prev) =>
             prev.phase === 'running' ? { phase: 'running', lastEventAt: Date.now() } : prev,
           )

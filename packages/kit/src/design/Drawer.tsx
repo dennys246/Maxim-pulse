@@ -8,11 +8,14 @@ export function Drawer({
   open,
   title,
   onClose,
+  wide = false,
   children,
 }: {
   open: boolean
   title: string
   onClose: () => void
+  /** A table-shaped surface (Logs) needs more than the settings width. */
+  wide?: boolean
   children: ReactNode
 }) {
   if (!open) return null
@@ -27,7 +30,7 @@ export function Drawer({
       <aside
         role="dialog"
         aria-label={title}
-        className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto border-l border-edge bg-bg p-4 shadow-xl"
+        className={`absolute right-0 top-0 h-full w-full ${wide ? 'max-w-4xl' : 'max-w-md'} overflow-y-auto border-l border-edge bg-bg p-4 shadow-xl`}
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-scene-fg">{title}</h2>

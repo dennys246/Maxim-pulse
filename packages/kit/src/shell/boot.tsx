@@ -26,7 +26,11 @@ export function bootConsole(
   if (root === null) throw new Error('bootConsole: no #root element to mount into')
   const auth = new AuthSession()
   auth.bootstrapFromLocation()
-  const facade = new HttpFacade({ auth, subscribe: profile.subscribe })
+  const facade = new HttpFacade({
+    auth,
+    subscribe: profile.subscribe,
+    liveHealth: profile.health === true,
+  })
   createRoot(root).render(
     <StrictMode>
       <ThemeProvider>

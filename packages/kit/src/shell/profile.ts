@@ -45,6 +45,8 @@ export interface TopBarAction extends SeamRequirement {
 export interface DrawerSpec extends SeamRequirement {
   id: string
   title: string
+  /** Table-shaped surfaces (Logs) get the wide drawer. */
+  wide?: boolean
   render: (close: () => void) => ReactNode
 }
 
@@ -71,4 +73,11 @@ export interface DeviceProfile {
   actions: TopBarAction[]
   links: LinkSpec[]
   drawers: DrawerSpec[]
+  /**
+   * Show the host health strip and ask the server for the live health stream
+   * (contract 0.6.0). The opt-in is sent only once the connection's identity
+   * declares the `health` seam live — an older server would read it as a
+   * filter and starve the stream.
+   */
+  health?: boolean
 }

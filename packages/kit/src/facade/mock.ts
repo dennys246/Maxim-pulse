@@ -1,6 +1,12 @@
 import { CONTRACT_VERSION } from './contractVersion'
 import { FacadeError } from './http'
 import type {
+  ActionPage,
+  ActionRecord,
+  DegradedResponse,
+  HealthResponse,
+  RunPage,
+  RunReport,
   CampaignsResponse,
   IdentityResponse,
   CloudSetupRequest,
@@ -66,6 +72,9 @@ export class MockFacade implements FacadeClient {
       { name: 'talk', live: true, detail: null },
       { name: 'adventure', live: true, detail: null },
       { name: 'sim', live: false, detail: 'CLI only' },
+      { name: 'runs', live: true, detail: '/api/runs' },
+      { name: 'health', live: true, detail: '/api/health' },
+      { name: 'degraded', live: true, detail: '/api/health/degraded' },
     ],
   }
   campaigns: CampaignsResponse = {
@@ -87,6 +96,121 @@ export class MockFacade implements FacadeClient {
    */
   greeting: HelloResponse = { contract_version: CONTRACT_VERSION, auth: 'none', pairing: 'none' }
   requests: Array<{ endpoint: string; body: unknown }> = []
+
+  // ── run history + health fixtures (contract 0.6.0) ──
+  // Three shapes the real store holds: a credit-recording (1.2) adventure with
+  // one bridge-booked failure, an older run whose actions predate credit, and
+  // an aborted run with no report at all.
+  runs: RunPage['runs'] = [
+    { session_id: '20260903_005659', started_at: 1788419000, has_report: true, mode: 'adventure',
+      goal: 'dm:the_darkened_cavern', finish_reason: 'completed', turns: 6, duration_s: 412, cost_usd: 0.031,
+      total_actions: 3 },
+    { session_id: '20260902_101010', started_at: 1788343810, has_report: false, mode: null, goal: null,
+      finish_reason: null, turns: null, duration_s: null, cost_usd: null, total_actions: null },
+    { session_id: '20260901_120000', started_at: 1788264000, has_report: true, mode: 'generative',
+      goal: 'dm:the_arena', finish_reason: 'llm_wedged', turns: 1, duration_s: 407, cost_usd: 0,
+      total_actions: 1 },
+  ] // prettier-ignore
+  reports: Record<string, RunReport> = {
+    '20260903_005659': { session_id: '20260903_005659', started_at: 1788419000, ended_at: 1788419412,
+      format_version: '1.0', goal: 'dm:the_darkened_cavern', mode: 'adventure', finish_reason: 'completed',
+      duration_s: 412, turns: 6, total_actions: 3, cost_usd: 0.031, tool_usage: { sense_tools: 2, respond: 1 },
+      tool_success_rates: { sense_tools: 0.5, respond: 1 }, response_texts: [] },
+    '20260901_120000': { session_id: '20260901_120000', started_at: 1788264000, ended_at: 1788264407,
+      format_version: '1.0', goal: 'dm:the_arena', mode: 'generative', finish_reason: 'llm_wedged',
+      duration_s: 407, turns: 1, total_actions: 1, cost_usd: 0, tool_usage: { respond: 1 },
+      tool_success_rates: { respond: 1 }, response_texts: [] },
+  } // prettier-ignore
+  actions: Record<string, { format_version: string | null; actions: ActionRecord[] }> = {
+    '20260903_005659': { format_version: '1.2', actions: [
+      { timestamp: 1788419020, tool: 'sense_tools', params: {}, success: true, blocked: false, rpe: null, pain: null,
+        nac_failure_booked: null, credit_recorded: true },
+      { timestamp: 1788419021, tool: 'sense_tools', params: { q: 'door' }, success: false, blocked: false,
+        error: 'no such door', rpe: -0.42, pain: 0.3, nac_failure_booked: 'tool:sense_tools:failure',
+        credit_recorded: true },
+      { timestamp: 1788419022, tool: 'respond', params: {}, success: true, blocked: false, rpe: 0.12, pain: null,
+        nac_failure_booked: null, credit_recorded: true },
+    ] },
+    '20260901_120000': { format_version: '1.1', actions: [
+      { timestamp: 1788264010, tool: 'respond', params: {}, success: true, blocked: false, rpe: null, pain: null,
+        nac_failure_booked: null, credit_recorded: false },
+    ] },
+  } // prettier-ignore
+  healthSnapshot: HealthResponse = {
+    monitoring: true,
+    stall_detection: false,
+    recorded_since: 1788418000,
+    dropped_records: 0,
+    latest: {
+      timestamp: 1788419400,
+      cpu: { usage_pct: 23.5 },
+      memory: { usage_pct: 61.2 },
+      gpu: { utilization_pct: 44, vram_used_gb: 9.8, vram_total_gb: 24, temperature_c: 67 },
+      lanes: { large: { p50_latency_ms: 840, jobs_completed: 42, jobs_failed: 1 } },
+    },
+    stalls: [],
+    series: [],
+  }
+  degradedSites: DegradedResponse = {
+    since: 0,
+    counted_since: 1788418000,
+    sites: [
+      { site: 'executor.py:_fail_ran', count: 3, first_seen: 1788418100, last_seen: 1788419300,
+        exc_type: 'TypeError', sample: 'bad arg' },
+      { site: 'nac.py:_record_outcome_impl:collector', count: 1, first_seen: 1788418200,
+        last_seen: 1788418200, exc_type: 'KeyError', sample: "'x'" },
+    ],
+  } // prettier-ignore
+
+  async listRuns(page: { cursor?: string; limit?: number } = {}): Promise<RunPage> {
+    const start = page.cursor != null ? Number(page.cursor.replace('mock:', '')) : 0
+    const limit = page.limit ?? 50
+    const slice = this.runs.slice(start, start + limit)
+    const next = start + limit < this.runs.length ? `mock:${start + limit}` : null
+    return { runs: slice, next_cursor: next }
+  }
+
+  async getRun(sessionId: string): Promise<RunReport> {
+    const report = this.reports[sessionId]
+    if (report == null) throw new FacadeError(404, 'No such run.', `/api/runs/${sessionId}`)
+    return report
+  }
+
+  async listActions(
+    sessionId: string,
+    page: { cursor?: string; limit?: number } = {},
+  ): Promise<ActionPage> {
+    const recorded = this.actions[sessionId]
+    if (recorded == null) {
+      return {
+        session_id: sessionId,
+        available: false,
+        reason: 'This run recorded no actions file.',
+        actions: [],
+        skipped: 0,
+      }
+    }
+    const start = page.cursor != null ? Number(page.cursor.replace('mock:', '')) : 0
+    const limit = page.limit ?? 200
+    const slice = recorded.actions.slice(start, start + limit)
+    const next = start + limit < recorded.actions.length ? `mock:${start + limit}` : null
+    return {
+      session_id: sessionId,
+      available: true,
+      format_version: recorded.format_version,
+      actions: slice,
+      next_cursor: next,
+      skipped: 0,
+    }
+  }
+
+  async health(): Promise<HealthResponse> {
+    return this.healthSnapshot
+  }
+
+  async degraded(): Promise<DegradedResponse> {
+    return this.degradedSites
+  }
 
   async hello(): Promise<HelloResponse> {
     return this.greeting

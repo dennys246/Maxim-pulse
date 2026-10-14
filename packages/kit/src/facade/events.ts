@@ -39,6 +39,21 @@ export interface WsEventSourceOptions {
    * means; the source keeps backing off meanwhile unless suspended.
    */
   onHandshakeRefused?: () => void
+  /**
+   * OPT-IN kinds (contract 0.6.0: `health`, `health_stall`) to add to this
+   * stream — but only once the connection's own `identity` frame declares
+   * `whenSeamLive` live. NEVER sent blind: a 0.5.0 server reads `kinds` as a
+   * FILTER, so `{kinds: ["health"]}` would starve the client of every other
+   * event. A 0.6.0 server reads opt-in kinds as additive.
+   */
+  optIn?: { kinds: string[]; whenSeamLive: string }
+}
+
+/** Does this identity frame declare `seam` live? (the envelope's data is the IdentityResponse) */
+function declaresLive(event: ConsoleEvent, seam: string): boolean {
+  const seams = (event.data as { seams?: Array<{ name?: unknown; live?: unknown }> } | undefined)
+    ?.seams
+  return Array.isArray(seams) && seams.some((s) => s?.name === seam && s?.live === true)
 }
 
 /**
@@ -79,6 +94,7 @@ export class WsEventSource {
   private subscribe?: SubscribeFrame
   private resolveProtocols: () => string[] | null
   private onHandshakeRefused?: () => void
+  private optIn?: { kinds: string[]; whenSeamLive: string }
 
   constructor(options: WsEventSourceOptions) {
     this.resolveUrl = options.resolveUrl
@@ -89,6 +105,7 @@ export class WsEventSource {
     this.subscribe = options.subscribe
     this.resolveProtocols = options.resolveProtocols ?? (() => [])
     this.onHandshakeRefused = options.onHandshakeRefused
+    this.optIn = options.optIn
   }
 
   on(kind: string, handler: EventHandler): () => void {
@@ -147,6 +164,7 @@ export class WsEventSource {
     const ws = this.wsFactory(this.resolveUrl(), protocols)
     this.ws = ws
     let opened = false
+    let optedIn = false
     ws.onopen = () => {
       opened = true
       this.attempts = 0
@@ -160,6 +178,15 @@ export class WsEventSource {
         event = JSON.parse(String(message.data)) as ConsoleEvent
       } catch {
         return // not an envelope; ignore
+      }
+      // Every connection opens with an identity frame: the earliest moment this
+      // socket knows whether its server speaks the opt-in rule.
+      if (!optedIn && this.optIn != null && event.kind === 'identity' && ws.send != null) {
+        optedIn = true
+        if (declaresLive(event, this.optIn.whenSeamLive)) {
+          const base = this.subscribe ?? {}
+          ws.send(JSON.stringify({ ...base, kinds: [...(base.kinds ?? []), ...this.optIn.kinds] }))
+        }
       }
       this.dispatch(event)
     }
