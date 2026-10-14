@@ -130,12 +130,15 @@ def advertised_hosts(config: BootstrapConfig) -> tuple[str, ...]:
     return config.advertised_hosts or (MDNS_HOST, *_local_ipv4_addresses())
 
 
-def _default_serve(config: BootstrapConfig) -> _Server:
+def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
     try:
+        from maxim.console import make_pairing_announcer  # type: ignore[import-not-found]
         from maxim.console.server import (  # type: ignore[import-not-found]
             build_app,
             device_console_handoff,
         )
+        from maxim.models.audio.tts import TTSEngine  # type: ignore[import-not-found]
+        from maxim.utils.audio import make_device_speak_sink  # type: ignore[import-not-found]
     except ImportError as error:
         raise MaximNotInstalledError() from error
     hosts = advertised_hosts(config)
@@ -146,8 +149,21 @@ def _default_serve(config: BootstrapConfig) -> _Server:
     #    console.sandbox must be OFF on-device: build_app refuses the
     #    sandbox × extra_trusted_origins combination at build time (auth off).
     origins = [handoff.origin, *(f"http://{host}:{config.port}" for host in hosts[1:])]
+    # 3. The device sign-in path (A9.1): the robot SPEAKS a one-use code when
+    #    the sign-in page asks. Pure wiring of pymaxim's pieces — the TTS
+    #    engine, the device sink (which owns the int16 → float32 conversion
+    #    the SDK needs) and the factory that composes them. All three are
+    #    inert until a code is requested: no model load, no audio device.
+    #    Built here, before setup, because pairing is needed exactly when no
+    #    agent exists yet — the owner signs in to RUN the setup wizard.
+    announcer = make_pairing_announcer(TTSEngine(), make_device_speak_sink(reachy_mini))
     ui_dist = config.ui_dist if config.ui_dist.is_dir() else None
-    app = build_app(ui_dist, ui_source="packaged", extra_trusted_origins=origins)
+    app = build_app(
+        ui_dist,
+        ui_source="packaged",
+        extra_trusted_origins=origins,
+        pairing_announcer=announcer,
+    )
     server = _UvicornThread(app, config.host, config.port)
     server.handoff_url = handoff.url
     return server
@@ -194,7 +210,7 @@ class MaximReachyApp(ReachyMiniApp):
         self,
         config: BootstrapConfig | None = None,
         *,
-        serve: Callable[[BootstrapConfig], _Server] = _default_serve,
+        serve: Callable[[BootstrapConfig, Any], _Server] = _default_serve,
         build_handle: Callable[[BootstrapConfig], Any] = _default_build_handle,
         placement_resolvable: Callable[[], bool] = _default_placement_resolvable,
     ) -> None:
@@ -204,7 +220,8 @@ class MaximReachyApp(ReachyMiniApp):
         self._placement_resolvable = placement_resolvable
 
     def run(self, reachy_mini: Any, stop_event: threading.Event) -> None:
-        server = self._serve(self.config)
+        # the SDK handle feeds the pairing announcer's speaker
+        server = self._serve(self.config, reachy_mini)
         # Best effort for an SDK that reads the instance: the signed-in ⚙️
         # link. Pollen's 1.8.x daemon does NOT (see main.py) — it renders the
         # literal from main.py, which lands on the paste screen. Never logged.

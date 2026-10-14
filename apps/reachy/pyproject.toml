@@ -7,7 +7,7 @@
 # This target versions on Pollen's SDK cadence (CLAUDE.md § Versioning).
 [project]
 name = "maxim-reachy-app"
-version = "0.2.1"
+version = "0.3.0"
 description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
 requires-python = ">=3.10"
 dependencies = []
@@ -27,11 +27,16 @@ maxim_reachy_app = "maxim_reachy_app.main:MaximReachyApp"
 
 [project.optional-dependencies]
 # console = maxim serve's FastAPI/uvicorn; reachy = the Pollen SDK pin.
-# >=1.2 is the first RELEASE speaking console contract 0.5.0 — the spoken-code
-# pairing endpoints this app's UI signs in through (A9.1). On 1.1.x the robot
-# has no usable sign-in path at all: the dashboard link cannot carry a token
-# and /api/pair/* does not exist. Bump deliberately (CLAUDE.md § Versioning).
-robot = ["pymaxim[console,reachy]>=1.2,<2.0"]
+# >=1.2.1 is the first RELEASE with everything the device sign-in path needs:
+# console contract 0.5.0 (/api/pair/*, A9.1) plus make_pairing_announcer and
+# make_device_speak_sink, which this bootstrap wires. On 1.1.x the robot has no
+# usable sign-in path at all. Bump deliberately (CLAUDE.md § Versioning).
+# `tts` is not optional here: the pairing announcer synthesizes the spoken code
+# with piper-tts, which lives in pymaxim's `tts` extra, NOT `reachy` or
+# `console`. Without it the announcer fails (ImportError, logged by type only)
+# while the sign-in page tells the owner to listen — a silent dead end, since
+# the 202 deliberately does not reveal announcer health to tokenless callers.
+robot = ["pymaxim[console,reachy,tts]>=1.2.1,<2.0"]
 dev = ["pytest", "ruff"]
 
 [tool.ruff]
