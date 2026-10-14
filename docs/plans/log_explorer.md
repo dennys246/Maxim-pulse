@@ -1,6 +1,8 @@
 # Log explorer — the Console as the place to see what an agent did and why
 
-**Status:** DESIGN — owner decisions recorded 2026-10-13 (§6); build per §4.5 and §7.
+**Status:** BUILDING. Owner decisions 2026-10-13 (§6). §7 (one console, many devices) built on pulse
+branch `console-profiles`. The backend endpoints PR is built on pymaxim `feat/console-run-store` and has
+been through a three-lens review; its outcomes changed this design and are recorded in §8.
 **Repos:** maxim-pulse (UI, this file) + pymaxim (backend, §4 mirrors into
 `docs/plans/console_log_explorer.md` there).
 **Contract:** 0.5.0 → **0.6.0** (additive; §5).
@@ -96,12 +98,12 @@ sandbox mode** (a public visitor must never read run history). No route takes a 
 
 | Route | Returns |
 |---|---|
-| `GET /api/runs?cursor&limit` | `RunPage{runs: RunSummary[], next_cursor}` — id, started_at (derived), mode, goal (≤200 chars), finish_reason, turns, duration_s, cost_usd, total_actions, has_report |
-| `GET /api/runs/{id}` | `RunReport` — a named subset of `SimulationReport`; never `aut_*` |
-| `GET /api/runs/{id}/actions?cursor&limit` | `ActionPage` — header line skipped; credit fields null when absent |
-| `GET /api/runs/{id}/events?cursor&limit&event&subsystem&site&level&since&until` | `EventPage` over `events.jsonl` |
-| `GET /api/health?cursor&limit&since` | `HealthPage` — snapshots + stalls, newest first |
-| `GET /api/health/degraded?since` | `DegradedSite[]` grouped by site |
+| `GET /api/runs?cursor&limit` | `RunPage{runs: RunSummary[], next_cursor}` — session_id, started_at (derived), mode, goal (≤200 chars), finish_reason, turns, duration_s, cost_usd, total_actions, has_report |
+| `GET /api/runs/{session_id}` | `RunReport` — a named subset of `SimulationReport`; never `aut_*` |
+| `GET /api/runs/{session_id}/actions?cursor&limit` | `ActionPage` — header skipped; `available`/`reason`; credit keyed off the header version (≥ 1.2) |
+| ~~`GET /api/runs/{id}/events`~~ | **Deferred** (§8): ships with the writer that defines the trail's record shape |
+| `GET /api/health?since` | `HealthResponse{monitoring, stall_detection, recorded_since, latest, stalls, series}` — unpaged; the series is downsampled to ≤ 2000 points |
+| `GET /api/health/degraded?since` | `DegradedResponse{since, counted_since, sites: DegradedSite[]}` |
 
 ### 4.2 The run-id resolver (the security boundary)
 
@@ -124,9 +126,13 @@ records in a bounded ring, mirrored to `data_home()/console/health.jsonl` (rotat
 cap per §6 Q3). Scope is **this process** — peers and the leader proxy keep their
 own (`/v1/debug/heartbeat`).
 
-**Live:** a new `/ws` kind **`health`** (tier `clean`, not a meta-kind, so a client
-can filter it out) carrying the snapshot, and `health_stall`. Never reuse
-`heartbeat`, which stays the empty 15 s keep-alive.
+**Live:** `/ws` kinds **`health`** and **`health_stall`**, OPT-IN: never sent unless the
+client names them in its subscribe frame's `kinds`, and naming them adds them to
+whatever else the client receives (`{kinds: ["health"]}` is everything plus health;
+the Reachy profile's `{tier: "clean", kinds: ["health"]}` is the clean tier plus
+health). Never reuse `heartbeat`, which stays the empty 15 s keep-alive. Pulse
+must keep health events out of TurnStatus's "is the turn moving" test and out of
+the 2000-event ring: they carry `run_id: null`.
 
 **Privacy:** `system_metrics` includes `network` and `wifi`. Health on the wire
 and on disk carries an **allow-list** (gpu, cpu, memory, disk, lanes, loop) — never
@@ -163,8 +169,11 @@ SSIDs, interface addresses or hostnames.
 
 ## 5. Contract and handshake
 
-0.6.0, additive: six routes, their page/record schemas, the `health`/`health_stall`
-kinds, and two seams in `/api/identity`: `runs` and `health`.
+0.6.0, additive: five routes, their page/record schemas, the opt-in
+`health`/`health_stall` kinds, and three seams in `/api/identity`: `runs` (POSIX
+hosts), `health` (live only while the server samples) and `degraded` (live while
+it serves). The Reachy bootstrap must pass `build_app(health_monitor=True)` for
+the robot's health strip to have data.
 
 - **Old backend, new UI.** Each Logs feature gates on its seam being **present and
   live**. Note the kit's `isSeamLive` treats an unknown seam as live, which is right
@@ -239,3 +248,48 @@ raised as a pymaxim follow-up.
 
 **Order.** §7 lands in pulse first (behaviour-preserving: both shells' existing
 tests must pass unchanged), then the Logs surfaces on top of it.
+
+## 8. What the review changed (2026-10-13)
+
+pymaxim's three-lens review (Executor, Architecture, Wire integrity) of the endpoints PR, plus notes from
+pymaxim Session C, changed these decisions. Each is folded on `feat/console-run-store`.
+
+- **The resolver is NOT `utils/paths.py::resolve_run_dir`.** Session C's note asked for every read to go
+  through it; the inventory and all three lenses show why it cannot: a path-like argument returns any
+  directory, it searches the CWD first, and it follows symlinks out of `sim_reports`. Run ids go through
+  `console/run_store.py`, whose opens are **anchored to directory file descriptors** (root, then the run dir
+  with `O_DIRECTORY|O_NOFOLLOW`, then members). Path-based checks lost a swap race 25 times in 8 seconds
+  under the Executor's probe. Members must be single-linked regular files (a hardlink to a secret passes
+  `lstat` and `O_NOFOLLOW`) and are opened non-blocking (a FIFO hung a worker). Hosts without anchored opens
+  (Windows) report the `runs` seam closed rather than serve a weaker boundary. `resolve_run_dir`'s
+  docstring now says "not for request data".
+- **`/events` is deferred.** No writer produces `events.jsonl`, and the obvious one (sim_log records) uses
+  sim-elapsed `t` and nested `data`, which the reader I had guessed could not have handled. The route ships
+  with its writer, which defines the record shape. NAc credit lines in that trail key on `sim_nac_learn`
+  (pymaxim #1257: a bridge-booked failure is traced once, there).
+- **Three producers are dormant, and the API says so.** Stalls (nothing calls
+  `HeartbeatMonitor.set_loop_state_hook`, so `heartbeat_stall` cannot fire), per-action credit
+  (`actions.jsonl` is 1.1), and the per-run trail. Each has a strict red gate. `/api/health` carries
+  `stall_detection`; every current action reads `credit_recorded: false`. The UI must render both as
+  "not recorded", never as "none".
+- **Health on `/ws` is opt-in**, delivered only to a client that asks for it. As a broadcast it would have
+  broken pulse's TurnStatus (any non-keep-alive event reads as "the turn is moving", so a hung run would
+  look alive) and crowded the 2000-event ring. It carries no `run_id`.
+- **Sandbox is gated at the producer.** No monitor and no publishing under sandbox: a REST 403 is no refusal
+  if the same data rides `/ws`.
+- **Route parameter is `session_id`** (the sim session id). The console's own run id has the same format;
+  the join is the `/ws` `run` event's `sim_session_id`.
+
+### Answers to Session C's questions
+
+- **(a) Does v1 show per-action credit?** Yes. Its persistence (actions.jsonl 1.2) is a prerequisite pymaxim
+  PR; the strict gate `test_gate_actions_jsonl_records_per_action_credit` flips when it lands.
+- **(b) Does health cover console-hosted solo runs?** Yes. `maxim serve` starts the monitor. But stalls stay
+  undetectable until the agent loop registers the loop-state hook (Session C's note says the stall fires
+  after 30 s with no completed LLM call; it also needs `loop.idle_s`, which nothing provides).
+- **(c) Do swallowed-exception and heartbeat records belong in the run directory?** Yes, for records emitted
+  during a run: that is the per-run `events.jsonl` trail. The console's own health log covers the process
+  between runs.
+
+**Division of work.** The endpoints PR is built and reviewed here. The three producer PRs (stall hook,
+actions 1.2, events trail) are the natural pymaxim Session C lane; each has its red gate waiting.
