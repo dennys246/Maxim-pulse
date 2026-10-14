@@ -39,6 +39,17 @@ export type CampaignInfo = components['schemas']['CampaignInfo']
 export type CampaignsResponse = components['schemas']['CampaignsResponse']
 export type RunRequest = components['schemas']['RunRequest']
 export type RunAccepted = components['schemas']['RunAccepted']
+// Run history + health (contract 0.6.0). Read-only; every field a reader
+// cannot rely on is nullable: "not recorded" is never a fake zero.
+export type RunSummary = components['schemas']['RunSummary']
+export type RunPage = components['schemas']['RunPage']
+export type RunReport = components['schemas']['RunReport']
+export type ActionRecord = components['schemas']['ActionRecord']
+export type ActionPage = components['schemas']['ActionPage']
+export type HealthRecord = components['schemas']['HealthRecord']
+export type HealthResponse = components['schemas']['HealthResponse']
+export type DegradedSite = components['schemas']['DegradedSite']
+export type DegradedResponse = components['schemas']['DegradedResponse']
 /** Client→server /ws filter; meta-kinds bypass it server-side. */
 export type SubscribeFrame = components['schemas']['SubscribeFrame']
 /** The /ws stream envelope (exposed at GET /api/events/envelope for type-gen). */
@@ -85,6 +96,16 @@ export interface FacadeClient {
   recall(): Promise<RecallResponse>
   /** POST /api/run */
   run(request: RunRequest): Promise<RunAccepted>
+  /** GET /api/runs — past runs, newest first (seam `runs`). */
+  listRuns(page?: { cursor?: string; limit?: number }): Promise<RunPage>
+  /** GET /api/runs/{session_id} — one run's report. `sessionId` is the SIM session id. */
+  getRun(sessionId: string): Promise<RunReport>
+  /** GET /api/runs/{session_id}/actions — the run's actions, in order. */
+  listActions(sessionId: string, page?: { cursor?: string; limit?: number }): Promise<ActionPage>
+  /** GET /api/health — this server's health (seam `health`). */
+  health(since?: number): Promise<HealthResponse>
+  /** GET /api/health/degraded — swallowed exceptions grouped by site (seam `degraded`). */
+  degraded(since?: number): Promise<DegradedResponse>
   /** Subscribe to /ws events by kind ('*' = every event); returns an unsubscribe function. */
   on(kind: string, handler: (event: ConsoleEvent) => void): () => void
 }

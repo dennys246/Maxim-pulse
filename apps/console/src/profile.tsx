@@ -1,6 +1,7 @@
 import {
   ConnectionTest,
   CORE_PANELS,
+  LogsSurface,
   ModelPicker,
   SetupWizard,
   Stack,
@@ -89,6 +90,7 @@ export const consoleProfile: DeviceProfile = {
   actions: [
     { id: 'models', label: 'Models', content: ModelButtonLabel, opens: 'models' },
     { id: 'memory', label: 'What Maxim remembers', content: '✦', togglesPanel: 'memory' },
+    { id: 'logs', label: 'Logs', content: '≡', opens: 'logs' },
     { id: 'settings', label: 'Settings', content: '⚙', opens: 'settings' },
   ],
   links: [
@@ -117,6 +119,8 @@ export const consoleProfile: DeviceProfile = {
   ],
   drawers: [
     { id: 'models', title: 'Models', render: (close) => <ModelsDrawer close={close} /> },
+    { id: 'logs', title: 'Logs', wide: true, render: () => <LogsSurface /> },
     { id: 'settings', title: 'Settings', render: () => <SettingsDrawer /> },
   ],
+  health: true,
 }

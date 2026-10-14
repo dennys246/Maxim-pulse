@@ -45,8 +45,13 @@ test('a profile drives the top bar: actions in order, then links', async () => {
 })
 
 test('a surface whose seam the backend lacks EXPLAINS itself instead of rendering blank', async () => {
-  // MockFacade's identity declares talk/adventure/sim, not `runs` — an older backend.
-  renderApp(profile())
+  const facade = new MockFacade()
+  // an older backend: no `runs` seam declared at all
+  facade.backend = {
+    ...facade.backend,
+    seams: (facade.backend.seams ?? []).filter((s) => s.name !== 'runs'),
+  }
+  renderApp(profile(), facade)
   await userEvent.click(await screen.findByLabelText('Logs'))
   expect(screen.getByRole('status')).toHaveTextContent(
     'needs a backend speaking console contract 0.6.0',
@@ -55,25 +60,21 @@ test('a surface whose seam the backend lacks EXPLAINS itself instead of renderin
 })
 
 test('the same surface renders once the backend declares the seam live', async () => {
-  const facade = new MockFacade()
-  facade.backend = {
-    ...facade.backend,
-    seams: [...(facade.backend.seams ?? []), { name: 'runs', live: true, detail: null }],
-  }
-  renderApp(profile(), facade)
+  renderApp(profile()) // MockFacade declares `runs` live
   await userEvent.click(await screen.findByLabelText('Logs'))
   expect(await screen.findByText('the run list')).toBeInTheDocument()
 })
 
-test('a seam declared but NOT live is treated as missing (strict)', async () => {
+test('a seam declared but NOT live shows the SERVER\'s reason, not "needs a newer backend"', async () => {
   const facade = new MockFacade()
   facade.backend = {
     ...facade.backend,
-    seams: [{ name: 'runs', live: false, detail: 'closed in sandbox mode' }],
+    seams: [{ name: 'runs', live: false, detail: '/api/runs — closed in sandbox mode' }],
   }
   renderApp(profile(), facade)
   await userEvent.click(await screen.findByLabelText('Logs'))
   expect(screen.queryByText('the run list')).not.toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('closed in sandbox mode')
 })
 
 test('rails follow the profile', async () => {

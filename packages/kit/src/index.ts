@@ -39,3 +39,7 @@ export {
 export { LoginScreen, type LoginScreenProps } from './components/LoginScreen'
 export * from './facade'
 export * from './shell'
+export { LogsSurface } from './components/logs/LogsSurface'
+export { HealthStrip, HealthTab, DegradedTab } from './components/logs/HealthViews'
+export { RunsTab } from './components/logs/RunsTab'
+export { CreditChip } from './components/logs/CreditChip'

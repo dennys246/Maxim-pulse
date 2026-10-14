@@ -1,4 +1,13 @@
 export type {
+  ActionPage,
+  ActionRecord,
+  DegradedResponse,
+  DegradedSite,
+  HealthRecord,
+  HealthResponse,
+  RunPage,
+  RunReport,
+  RunSummary,
   CampaignInfo,
   IdentityResponse,
   SeamStatus,
@@ -29,7 +38,7 @@ export type {
 export type { components, paths } from './schema'
 export { MockFacade, wireEvent } from './mock'
 export { CONTRACT_VERSION } from './contractVersion'
-export { HttpFacade, FacadeError, AuthError, type HttpFacadeOptions } from './http'
+export { HttpFacade, FacadeError, AuthError, HEALTH_KINDS, type HttpFacadeOptions } from './http'
 export { WsEventSource, type WsEventSourceOptions, type WsFactory, type WsLike } from './events'
 export {
   AuthSession,

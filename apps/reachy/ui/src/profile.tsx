@@ -1,4 +1,4 @@
-import { CORE_PANELS, SetupWizard, Stack, type DeviceProfile } from '@maxim/kit'
+import { CORE_PANELS, LogsSurface, SetupWizard, Stack, type DeviceProfile } from '@maxim/kit'
 
 /**
  * The Reachy device profile. The robot page is an EXTENSION of the Console:
@@ -29,10 +29,18 @@ export const reachyProfile: DeviceProfile = {
   rails: { left: false, right: true },
   actions: [
     { id: 'memory', label: 'What Maxim remembers', content: '✦', togglesPanel: 'memory' },
+    { id: 'logs', label: 'Logs', content: '≡', opens: 'logs' },
     { id: 'settings', label: 'Settings', content: '⚙', opens: 'settings' },
   ],
   links: [{ label: 'Guides — docs.pymaxim.bio', href: 'https://docs.pymaxim.bio/', content: '?' }],
+  // The robot is an extension of the Console (owner decision 2026-10-13): the
+  // same Logs surface, plain DOM, and the health strip — a hot or stalled Pi
+  // is exactly what an owner should see. Live health needs the bootstrap to
+  // run the sampler (build_app(health_monitor=True), pymaxim after 1.3.1);
+  // until then the strip renders nothing and the Health tab says why.
+  health: true,
   drawers: [
+    { id: 'logs', title: 'Logs', wide: true, render: () => <LogsSurface /> },
     {
       id: 'settings',
       title: 'Settings',
