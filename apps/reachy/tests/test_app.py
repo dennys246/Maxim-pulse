@@ -130,21 +130,40 @@ class FakeHandoff:
 
 def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
     """A fake `maxim.console.server` + `uvicorn`: records what the bootstrap does."""
-    calls: dict = {"handoff": [], "build_app": [], "uvicorn": [], "synth": [], "spoken": []}
+    calls: dict = {
+        "handoff": [],
+        "build_app": [],
+        "uvicorn": [],
+        "synth": [],
+        "spoken": [],
+        "voice": [],
+    }
 
     def device_console_handoff(host: str, port: int = 8765) -> FakeHandoff:
         calls["handoff"].append({"host": host, "port": port})
         return FakeHandoff(f"http://{host}:{port}")
 
-    def build_app(ui_dist, ui_source="none", *, extra_trusted_origins=(), pairing_announcer=None):
+    def build_app(
+        ui_dist,
+        ui_source="none",
+        *,
+        extra_trusted_origins=(),
+        pairing_announcer=None,
+        pairing_ready=None,
+        health_monitor=False,
+    ):
         calls["build_app"].append(
             {
                 "ui_dist": ui_dist,
                 "ui_source": ui_source,
                 "extra_trusted_origins": list(extra_trusted_origins),
                 "pairing_announcer": pairing_announcer,
+                "pairing_ready": pairing_ready,
+                "health_monitor": health_monitor,
             }
         )
+        if calls.get("build_app_raises"):
+            raise RuntimeError("build_app refused")
         return object()
 
     # The three pymaxim pieces the bootstrap only WIRES (never composes itself).
@@ -152,6 +171,23 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
         def synthesize(self, text: str) -> str:
             calls["synth"].append(text)
             return f"samples<{text}>"
+
+    class VoiceProvisioner:
+        """pymaxim's background voice download+verify+load; records its lifecycle."""
+
+        def __init__(self) -> None:
+            self.engine = TTSEngine()
+            self.ready = False
+            calls["voice"].append("init")
+
+        def is_ready(self) -> bool:
+            return self.ready
+
+        def start(self) -> None:
+            calls["voice"].append("start")
+
+        def stop(self, timeout_s: float = 5.0) -> None:
+            calls["voice"].append("stop")
 
     def make_device_speak_sink(mini):
         def speak(samples, sample_rate=16000):
@@ -169,7 +205,7 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
     console_pkg = types.ModuleType("maxim.console")
     console_pkg.make_pairing_announcer = make_pairing_announcer  # type: ignore[attr-defined]
     tts_mod = types.ModuleType("maxim.models.audio.tts")
-    tts_mod.TTSEngine = TTSEngine  # type: ignore[attr-defined]
+    tts_mod.VoiceProvisioner = VoiceProvisioner  # type: ignore[attr-defined]
     audio_mod = types.ModuleType("maxim.utils.audio")
     audio_mod.make_device_speak_sink = make_device_speak_sink  # type: ignore[attr-defined]
     maxim_pkg = types.ModuleType("maxim")
@@ -216,6 +252,8 @@ def test_default_serve_mints_the_token_first_and_admits_every_advertised_host(
             "ui_source": "packaged",
             "extra_trusted_origins": ["http://reachy.local:8765", "http://192.168.1.42:8765"],
             "pairing_announcer": calls["build_app"][0]["pairing_announcer"],
+            "pairing_ready": calls["build_app"][0]["pairing_ready"],
+            "health_monitor": True,  # the robot samples health (contract 0.6.0)
         }
     ]
     assert callable(calls["build_app"][0]["pairing_announcer"])
@@ -296,3 +334,46 @@ def test_run_hands_the_sdk_handle_to_serve() -> None:
     stop.set()
     app.run(robot, stop)
     assert seen == [robot]
+
+
+def test_pairing_is_offered_only_once_the_voice_can_speak(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The voice provisions in the background (a robot can boot before Wi-Fi).
+    # build_app reads pairing_ready per request, so the by-ear path must follow
+    # the provisioner LIVE: absent while it loads, present once it can speak.
+    calls = install_fake_pymaxim(monkeypatch)
+    server = _default_serve(
+        BootstrapConfig(advertised_hosts=(MDNS_HOST,), ui_dist=tmp_path), FakeReachyMini()
+    )
+    ready = calls["build_app"][0]["pairing_ready"]
+    voice = ready.__self__
+    assert calls["voice"] == ["init", "start"]
+    assert ready() is False
+    voice.ready = True
+    assert ready() is True
+    server.stop()
+
+
+def test_stopping_the_server_stops_the_voice_provisioner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_pymaxim(monkeypatch)
+    server = _default_serve(
+        BootstrapConfig(advertised_hosts=(MDNS_HOST,), ui_dist=tmp_path), FakeReachyMini()
+    )
+    server.stop()
+    assert calls["voice"] == ["init", "start", "stop"]
+
+
+def test_a_refused_build_leaves_no_provisioner_thread_behind(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_pymaxim(monkeypatch)
+    calls["build_app_raises"] = True
+    with pytest.raises(RuntimeError, match="build_app refused"):
+        _default_serve(
+            BootstrapConfig(advertised_hosts=(MDNS_HOST,), ui_dist=tmp_path), FakeReachyMini()
+        )
+    assert calls["voice"] == ["init"]  # constructed, never started
+    assert calls["uvicorn"] == []
