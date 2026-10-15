@@ -599,7 +599,7 @@ export interface components {
             series?: components["schemas"]["HealthRecord"][];
             /**
              * Stall Detection
-             * @description False = stalls CANNOT be detected here (the agent loop registers no loop-state hook yet), so an empty `stalls` means unknown, not healthy.
+             * @description False = stalls CANNOT be detected here (no agent loop is running in this process), so an empty `stalls` means unknown, not healthy. A stall is a planning turn stuck past the threshold.
              */
             stall_detection: boolean;
             /** Stalls */

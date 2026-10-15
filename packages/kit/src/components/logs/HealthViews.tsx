@@ -29,8 +29,20 @@ export function summarize(snapshot: Record<string, unknown> | null | undefined):
 }
 
 const STALLS_OFF =
-  'Stall detection is off on this server: the agent loop does not report its state yet. ' +
+  'Stall detection is off on this server: no agent loop is running in this process. ' +
   'An empty list here means unknown, not healthy.'
+
+/** A stall is a planning turn stuck past the threshold with no live LLM call (pymaxim #1279). */
+function stallLine(data: Record<string, unknown> | null | undefined): string {
+  const outstanding = num(data, 'outstanding_s')
+  const threshold = num(data, 'threshold_s')
+  const wedged = num(data, 'wedged_s')
+  let line = `planning turn stuck ${outstanding != null ? Math.round(outstanding) : '?'} s`
+  if (threshold != null) line += ` (threshold ${Math.round(threshold)} s)`
+  line +=
+    wedged != null ? `, its LLM call wedged ${Math.round(wedged)} s` : ', no LLM call in flight'
+  return line
+}
 
 /** The Logs → Health tab: latest snapshot, stalls, and what the server can and cannot see. */
 export function HealthTab() {
@@ -79,7 +91,7 @@ export function HealthTab() {
           <ul className="mt-1">
             {(data.stalls ?? []).map((stall) => (
               <li key={stall.ts} className="border-t border-edge py-1">
-                {when(stall.ts)} — agent loop idle {num(stall.data, 'idle_s') ?? '?'} s
+                {when(stall.ts)} — {stallLine(stall.data)}
               </li>
             ))}
           </ul>
