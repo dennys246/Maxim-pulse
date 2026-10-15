@@ -108,6 +108,28 @@ test('the health strip renders nothing when the server is not sampling', async (
   expect(screen.queryByRole('status', { name: 'Host health' })).not.toBeInTheDocument()
 })
 
+test('a recorded stall reads as a stuck planning turn, in the fields pymaxim records', async () => {
+  const facade = new MockFacade()
+  facade.healthSnapshot = {
+    ...facade.healthSnapshot,
+    stall_detection: true,
+    stalls: [
+      {
+        ts: 1_760_000_000,
+        kind: 'health_stall',
+        data: { outstanding_s: 212.4, threshold_s: 180, wedged_s: null, loops: 1 },
+      },
+    ],
+  }
+  renderWith(<LogsSurface />, facade)
+  await userEvent.click(await screen.findByRole('tab', { name: 'Health' }))
+  const stalls = await screen.findByRole('region', { name: 'Stalls' })
+  expect(stalls).toHaveTextContent(
+    'planning turn stuck 212 s (threshold 180 s), no LLM call in flight',
+  )
+  expect(screen.queryByText(/Stall detection is off/)).not.toBeInTheDocument()
+})
+
 test('the health tab says when the server could not save every record', async () => {
   const facade = new MockFacade()
   facade.healthSnapshot = { ...facade.healthSnapshot, dropped_records: 4 }
