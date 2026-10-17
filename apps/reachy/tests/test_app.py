@@ -3,6 +3,11 @@
 The load-bearing assertion (AGENTS.md § execution flows): every stop_event is a
 clean FULL session-end — handle.stop(consolidation="full") fires, and the
 server stops even if the handle is absent or stop raises.
+
+The pymaxim fakes here prove our WIRING, never pymaxim's behaviour: each one
+mirrors the API we believe pymaxim has, so they all passed while pymaxim
+1.3.2's TTS could not speak at all. Compatibility with a real release is
+proven only by scripts/smoke-reachy-release.sh (CLAUDE.md § Required checks).
 """
 
 import logging

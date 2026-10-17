@@ -61,6 +61,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install ruff pytest
-      - run: ruff check apps/reachy
-      - run: ruff format --check apps/reachy
+      - run: ruff check apps/reachy scripts
+      - run: ruff format --check apps/reachy scripts
       - run: python -m pytest apps/reachy -q
