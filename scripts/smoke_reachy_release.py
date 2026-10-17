@@ -197,10 +197,14 @@ def main() -> int:
 
         # 3. the robot samples its own health
         token = (getattr(server, "handoff_url", None) or "").partition("#token=")[2]
-        health = _get(base, "/api/health", token)
+        try:  # a pre-0.6.0 server has no /api/health: that is a FAIL, not a crash
+            health, health_detail = _get(base, "/api/health", token), ""
+        except urllib.error.HTTPError as error:
+            health, health_detail = {}, f"HTTP {error.code}"
         check(
             health.get("monitoring") is True,
             "the server samples health (health_monitor wired)",
+            health_detail,
         )
 
         # 4. a pairing request reaches the robot's speaker as real audio
