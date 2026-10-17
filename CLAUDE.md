@@ -29,7 +29,25 @@ pnpm size:reachy   # assert heavy viz (react-flow/visx) is NOT in the on-device 
 
 # If the Reachy Python bootstrap changed (apps/reachy):
 ruff check apps/reachy && ruff format apps/reachy && python -m pytest apps/reachy -q
+
+# If the robot extra's pymaxim pin moved, or the bootstrap changed: the REAL bootstrap against
+# the PUBLISHED pymaxim, only the robot faked (temp venv + temp HOME). CI runs it on Linux arm64
+# (.github/workflows/release-smoke.yml); a pin bump does not merge on a red smoke.
+scripts/smoke-reachy-release.sh [<pymaxim version>]
 ```
+
+**Fakes prove wiring; only real releases prove compatibility.** Every unit test fakes pymaxim with
+the API we _believe_ it has — those fakes all passed while pymaxim 1.3.2 could not speak a pairing
+code. A claim about how pulse behaves on a pymaxim release ("the robot speaks", "health is
+sampled") is verified by the release smoke, or by a run against that release, never by the fakes.
+`PYMAXIM_SPEC=<wheel> scripts/smoke-reachy-release.sh` smokes a pymaxim candidate before it ships.
+
+**Untyped `data` dicts are a contract the openapi diff cannot see.** Health samples, stall
+records and degraded sites arrive as free-form `data`; a field rename there changes nothing in
+`gen:facade:check`. Read them only through one named accessor per record kind
+(`summarize`, `stallLine` in `components/logs/HealthViews.tsx`), each tested against a record in the
+producer's real shape, and when pymaxim's openapi diff touches the description of such a record,
+read the producer's code before re-syncing (#1279 renamed `idle_s` behind a description-only diff).
 
 No test may spin up a real robot, a real LLM, or a live `maxim serve` — mock the facade client.
 For Reachy loop tests use a fake SDK (the real `ReachyMini()` blocks without hardware).
@@ -129,3 +147,9 @@ Two cadences: the **Reachy target** tracks **Pollen SDK** (pin `reachy-mini[gstr
 the **kit + Console** track **pymaxim**. Pin the `pymaxim` dependency explicitly and bump it
 deliberately. Bump the app/target version on any change to runtime behavior, the setup flow, or
 SDK-compat.
+
+**After every pymaxim release, check what it vendored:** `python3 scripts/check_pymaxim_vendor.py
+<version>` reads the wheel from PyPI and fails unless its console bundle is the newest pulse tag for
+its contract (compared by commit) built from a clean tree. 1.3.2 shipped v0.4.0 while v0.4.1 — the
+fix made for that release — existed. Release order for any contract change: pulse tags, pymaxim
+vendors, pymaxim releases, pulse runs this check.

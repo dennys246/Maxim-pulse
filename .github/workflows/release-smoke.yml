@@ -1,0 +1,48 @@
+name: Release smoke
+
+# The real Reachy bootstrap against a real, PUBLISHED pymaxim, with only the
+# robot faked (scripts/smoke_reachy_release.py). Unit tests fake pymaxim, so
+# they cannot catch pymaxim behaving differently from our fakes — this can.
+# Runs on Linux arm64, the robot's platform. It is the gate for the robot
+# extra's pymaxim pin: a PR that moves the pin cannot merge on a red smoke.
+on:
+  pull_request:
+    paths:
+      - apps/reachy/pyproject.toml
+      - apps/reachy/maxim_reachy_app/**
+      - scripts/smoke*
+      - .github/workflows/release-smoke.yml
+  workflow_dispatch:
+    inputs:
+      pymaxim:
+        description: 'pymaxim version to smoke (blank = the robot extra pin floor)'
+        required: false
+      vendor_check:
+        description: 'pymaxim version whose vendored console bundle to check (blank = skip)'
+        required: false
+
+jobs:
+  reachy:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags, for the bundle stamp and the vendor check
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @maxim/reachy-ui build
+      - uses: astral-sh/setup-uv@v6
+      - name: Smoke the bootstrap against the published pymaxim
+        env:
+          PYMAXIM_VERSION: ${{ inputs.pymaxim }} # via env, never interpolated into the script
+        run: scripts/smoke-reachy-release.sh ${PYMAXIM_VERSION:+"$PYMAXIM_VERSION"}
+      - name: Check the console bundle a pymaxim release vendored
+        if: inputs.vendor_check != ''
+        env:
+          PYMAXIM_VERSION: ${{ inputs.vendor_check }}
+        run: python3 scripts/check_pymaxim_vendor.py "$PYMAXIM_VERSION"
