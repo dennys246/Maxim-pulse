@@ -20,6 +20,20 @@ export default tseslint.config(
     languageOptions: { globals: { console: 'readonly' } },
   },
   {
+    // Node test drivers whose page.evaluate() callbacks run in the browser.
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        localStorage: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {

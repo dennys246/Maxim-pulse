@@ -35,13 +35,20 @@ ruff check apps/reachy && ruff format apps/reachy && python -m pytest apps/reach
 # for every PR that moves the pin (.github/workflows/release-smoke.yml) — a pin bump does not
 # merge on a red smoke; for a bootstrap-only change, run it locally or dispatch the workflow.
 scripts/smoke-reachy-release.sh [<pymaxim version>]
+
+# If a UI flow, the contract mirror, or the shell changed: the BUILT bundles in real Chrome
+# against a published pymaxim (sign-in, pairing, both profiles, Logs) — temp venv + HOME, run
+# history seeded by pymaxim's own writers. CI runs it on every openapi.json re-sync (e2e.yml).
+pnpm e2e [<pymaxim version>]
 ```
 
 **Fakes prove wiring; only real releases prove compatibility.** Every unit test fakes pymaxim with
 the API we _believe_ it has — those fakes all passed while pymaxim 1.3.2 could not speak a pairing
 code. A claim about how pulse behaves on a pymaxim release ("the robot speaks", "health is
 sampled") is verified by the release smoke, or by a run against that release, never by the fakes.
-`PYMAXIM_SPEC=<wheel> scripts/smoke-reachy-release.sh` smokes a pymaxim candidate before it ships.
+`PYMAXIM_SPEC=<wheel> scripts/smoke-reachy-release.sh` (or `scripts/e2e.sh`) tests a pymaxim
+candidate before it ships. Never patch around a defect these find (installing a missing dependency,
+skipping a check): the failure IS the finding — report it to pymaxim.
 
 **Untyped `data` dicts are a contract the openapi diff cannot see.** Health samples, stall
 records and degraded sites arrive as free-form `data`; a field rename there changes nothing in
@@ -72,7 +79,7 @@ pnpm --filter @maxim/reachy-ui build
   the next action on the paste screen with the rotation hint, never a silent retry loop. A
   MockFacade (`auth: "none"`, the website Demo) must never render a login screen. The reference
   semantics are pymaxim's `tests/unit/test_console_auth.py`; a browser e2e of the whole flow
-  (Playwright over a real `maxim serve`) is how it was verified — the CLI token is never in a URL
+  (`pnpm e2e` — Playwright over a real `maxim serve`) verifies it — the CLI token is never in a URL
   query, never logged.
 - **Verify SetupWizard writes real config.** After a mesh/cloud choice, confirm
   `~/.config/maxim/config.json` has a resolvable `lanes.large` placement and the key landed as a
