@@ -1,0 +1,33 @@
+name: Browser e2e
+
+# The built bundles in real Chrome against a real, PUBLISHED pymaxim
+# (scripts/e2e.sh): sign-in, pairing, both device profiles, the Logs explorer.
+# Gated on a contract re-sync, the change that most needs proof against the
+# real server; anything else runs it locally or via dispatch.
+on:
+  pull_request:
+    paths:
+      - packages/kit/openapi.json
+  workflow_dispatch:
+    inputs:
+      pymaxim:
+        description: 'pymaxim version (blank = the newest on PyPI)'
+        required: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest # ships Google Chrome, which the suite drives
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@v6
+      - name: Run the suite against the published pymaxim
+        env:
+          PYMAXIM_VERSION: ${{ inputs.pymaxim }} # via env, never interpolated into the script
+        run: scripts/e2e.sh ${PYMAXIM_VERSION:+"$PYMAXIM_VERSION"}

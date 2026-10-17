@@ -109,9 +109,12 @@ def test_server_stops_even_if_handle_stop_raises() -> None:
     assert server.stopped
 
 
-def test_default_deps_fail_loudly_without_pymaxim() -> None:
+def test_default_deps_fail_loudly_without_pymaxim(monkeypatch: pytest.MonkeyPatch) -> None:
     # Default construction is valid; running without pymaxim installed must
-    # raise the friendly install hint, not an opaque ImportError.
+    # raise the friendly install hint, not an opaque ImportError. "Not
+    # installed" is simulated (a None entry makes every `maxim` import raise),
+    # so the test means the same on a machine that does have pymaxim.
+    monkeypatch.setitem(sys.modules, "maxim", None)
     app = MaximReachyApp()
     stop = threading.Event()
     stop.set()
