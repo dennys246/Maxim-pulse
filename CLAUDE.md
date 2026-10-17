@@ -32,7 +32,8 @@ ruff check apps/reachy && ruff format apps/reachy && python -m pytest apps/reach
 
 # If the robot extra's pymaxim pin moved, or the bootstrap changed: the REAL bootstrap against
 # the PUBLISHED pymaxim, only the robot faked (temp venv + temp HOME). CI runs it on Linux arm64
-# (.github/workflows/release-smoke.yml); a pin bump does not merge on a red smoke.
+# for every PR that moves the pin (.github/workflows/release-smoke.yml) — a pin bump does not
+# merge on a red smoke; for a bootstrap-only change, run it locally or dispatch the workflow.
 scripts/smoke-reachy-release.sh [<pymaxim version>]
 ```
 

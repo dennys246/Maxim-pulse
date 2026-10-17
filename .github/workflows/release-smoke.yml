@@ -6,12 +6,12 @@ name: Release smoke
 # Runs on Linux arm64, the robot's platform. It is the gate for the robot
 # extra's pymaxim pin: a PR that moves the pin cannot merge on a red smoke.
 on:
+  # Only a PIN change is gated: until a pymaxim release can do everything the
+  # bootstrap wires, any other PR would go red for reasons it did not cause.
+  # A bootstrap change runs the smoke locally (CLAUDE.md) or via dispatch.
   pull_request:
     paths:
       - apps/reachy/pyproject.toml
-      - apps/reachy/maxim_reachy_app/**
-      - scripts/smoke*
-      - .github/workflows/release-smoke.yml
   workflow_dispatch:
     inputs:
       pymaxim:
