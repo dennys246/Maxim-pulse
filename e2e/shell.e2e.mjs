@@ -48,10 +48,9 @@ const key = token() // the device server shares this HOME, so one token signs in
       (await visible(page.getByRole('button', { name: 'Test connection' }))),
   )
   await page.getByLabel('Close Settings').click()
-  await page.getByLabel('Models').click()
   check(
-    'console: the models drawer opens',
-    await visible(page.getByRole('dialog', { name: 'Models' })),
+    'console: no Models button until pymaxim reports model status',
+    !(await visible(page.getByLabel('Models'))),
   )
   await page.close()
 }

@@ -2,10 +2,8 @@ import {
   ConnectionTest,
   CORE_PANELS,
   LogsSurface,
-  ModelPicker,
   SetupWizard,
   Stack,
-  useSelectedModel,
   type DeviceProfile,
 } from '@maxim/kit'
 import { lazy, Suspense, useState } from 'react'
@@ -23,23 +21,10 @@ const PlaceholderFlowPanel = lazy(() =>
   import('@maxim/kit/viz').then((m) => ({ default: m.PlaceholderFlowPanel })),
 )
 
-function ModelButtonLabel() {
-  const { model } = useSelectedModel()
-  return <>{model ?? 'model'} ▾</>
-}
-
-function ModelsDrawer({ close }: { close: () => void }) {
-  const { model, setModel } = useSelectedModel()
-  return (
-    <ModelPicker
-      value={model}
-      onChange={(m) => {
-        setModel(m.name)
-        close()
-      }}
-    />
-  )
-}
+// No Models button yet (docs/plans/model_picker.md). The old picker listed pymaxim's
+// built-in catalog, not what the configured lane serves, and the choice reached no
+// server: picking a model changed only the button's label. It comes back when
+// pymaxim reports per-model status and can apply a choice.
 
 function SettingsDrawer() {
   const [leaderUrl, setLeaderUrl] = useState('http://127.0.0.1:8099')
@@ -88,7 +73,6 @@ export const consoleProfile: DeviceProfile = {
   panels: CORE_PANELS,
   rails: { left: true, right: true },
   actions: [
-    { id: 'models', label: 'Models', content: ModelButtonLabel, opens: 'models' },
     { id: 'memory', label: 'What Maxim remembers', content: '✦', togglesPanel: 'memory' },
     { id: 'logs', label: 'Logs', content: '≡', opens: 'logs' },
     { id: 'settings', label: 'Settings', content: '⚙', opens: 'settings' },
@@ -118,7 +102,6 @@ export const consoleProfile: DeviceProfile = {
     },
   ],
   drawers: [
-    { id: 'models', title: 'Models', render: (close) => <ModelsDrawer close={close} /> },
     { id: 'logs', title: 'Logs', wide: true, render: () => <LogsSurface /> },
     { id: 'settings', title: 'Settings', render: () => <SettingsDrawer /> },
   ],
