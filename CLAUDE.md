@@ -40,6 +40,11 @@ scripts/smoke-reachy-release.sh [<pymaxim version>]
 # against a published pymaxim (sign-in, pairing, both profiles, Logs) — temp venv + HOME, run
 # history seeded by pymaxim's own writers. CI runs it on every openapi.json re-sync (e2e.yml).
 pnpm e2e [<pymaxim version>]
+
+# Before tagging a pulse release against a pymaxim release (or on its candidate wheel): every
+# automated check against what users install — vendored bundle, oldest/newest Python, upgrade,
+# the real robot install. Then Tiers B (live agent) and C (robot): docs/release-checklist.md.
+scripts/release-acceptance.sh <pymaxim version | wheel>
 ```
 
 **Fakes prove wiring; only real releases prove compatibility.** Every unit test fakes pymaxim with

@@ -1,6 +1,9 @@
 """Did a published pymaxim wheel vendor the console bundle it should have?
 
     python3 scripts/check_pymaxim_vendor.py 1.3.2
+    python3 scripts/check_pymaxim_vendor.py --wheel dist/pymaxim-1.3.3-py3-none-any.whl
+
+(--wheel checks a candidate before it is uploaded: "existed at upload" means now.)
 
 pymaxim ships the Console by vendoring a pulse release bundle into its wheel.
 Nothing on either side used to check WHICH bundle went in: pymaxim 1.3.2
@@ -27,6 +30,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 import zipfile
 from datetime import datetime
@@ -90,11 +94,16 @@ def _tag_contract(tag: str) -> str | None:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) == 3 and sys.argv[1] == "--wheel":
+        version = Path(sys.argv[2]).name
+        wheel, uploaded, label = zipfile.ZipFile(sys.argv[2]), time.time(), "checked"
+    elif len(sys.argv) == 2 and not sys.argv[1].startswith("-"):
+        version = sys.argv[1]
+        wheel, uploaded = _wheel(version)
+        label = "uploaded"
+    else:
         print(__doc__)
         return 2
-    version = sys.argv[1]
-    wheel, uploaded = _wheel(version)
     names = set(wheel.namelist())
     if STAMP not in names:
         print(f"FAIL  pymaxim {version} vendors no console bundle ({STAMP} missing)")
@@ -117,7 +126,7 @@ def main() -> int:
     expected = newest_for_contract(tags, uploaded, server)
 
     print(
-        f"pymaxim {version}: server contract {server}, uploaded {datetime.fromtimestamp(uploaded):%Y-%m-%d %H:%M}"
+        f"pymaxim {version}: server contract {server}, {label} {datetime.fromtimestamp(uploaded):%Y-%m-%d %H:%M}"
     )
     print(
         f"  vendored: {stamp.get('target')} {stamp.get('app_version')} built at {stamp.get('describe')}"
