@@ -95,8 +95,6 @@ export function ModelPicker({ value, onChange, filter, curatedCount = 3 }: Model
                     {model.name}
                     <span className="float-right text-xs text-fg-muted">
                       {model.cloud ? 'cloud' : model.backend}
-                      {model.context_length != null &&
-                        ` · ${Math.round(model.context_length / 1024)}k ctx`}
                       {model.ready && ' · ready'}
                     </span>
                   </button>

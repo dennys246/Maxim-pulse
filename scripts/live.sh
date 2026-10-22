@@ -173,7 +173,7 @@ What to look at (the e2e suite already proves the rest):
   Desktop  · no yellow "Contract mismatch" banner · health strip "CPU n% · RAM n%" updates
            · Logs → Runs: open the top run — action 2 "booked by bridge · rpe −0.42 · pain 0.30"
            · Logs → Health: "no agent loop is running in this process"
-           · press r, then click Models: the paste screen with the "rotated" hint; t, paste, back in
+           · press r, then click Logs: the paste screen with the "rotated" hint; t, paste, back in
   Reachy   · in a private window ($DEVICE/): two ways in; "Have the robot say a code"
              → the code prints here; type 000000 first ("Wrong code."), then the real one
            · right rail only, no Models / GitHub, Settings is setup only, health strip

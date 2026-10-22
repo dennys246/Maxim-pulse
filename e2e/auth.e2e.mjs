@@ -76,11 +76,11 @@ check('a plain reload with the stored token lands on the shell', true)
 rotateToken()
 const rotated = token()
 check('rotation produced a different token', rotated !== first)
-// The next authenticated call 401s. The page may already be making one (a stream
+// The next authenticated call 401s (opening Logs lists runs). The page may already be making one (a stream
 // reconnect, an identity read); otherwise an action makes it.
 if (!(await visible(signIn)))
   await page
-    .getByLabel('Models')
+    .getByLabel('Logs')
     .click({ timeout: 5_000 })
     .catch(() => {})
 await signIn.waitFor({ timeout: 15_000 })
