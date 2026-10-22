@@ -8,6 +8,8 @@ name: Release smoke
 on:
   # Only a PIN change is gated: until a pymaxim release can do everything the
   # bootstrap wires, any other PR would go red for reasons it did not cause.
+  # The path filter can only see the FILE, so the `pin` step below checks the
+  # robot pin LINE itself and skips the smoke when only packaging changed.
   # A bootstrap change runs the smoke locally (CLAUDE.md) or via dispatch.
   pull_request:
     paths:
@@ -29,20 +31,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # tags, for the bundle stamp and the vendor check
+      - name: Did this change move the robot's pymaxim pin?
+        id: pin
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          elif git diff "$BASE" HEAD -- apps/reachy/pyproject.toml | grep -qE '^[+-]robot = '; then
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the robot pin did not move; the release smoke gates pin changes only"
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v4
+        if: steps.pin.outputs.changed == 'true'
       - uses: actions/setup-node@v4
+        if: steps.pin.outputs.changed == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: steps.pin.outputs.changed == 'true'
       - run: pnpm --filter @maxim/reachy-ui build
+        if: steps.pin.outputs.changed == 'true'
       - uses: astral-sh/setup-uv@v6
+        if: steps.pin.outputs.changed == 'true'
       - name: Smoke the bootstrap against the published pymaxim
+        if: steps.pin.outputs.changed == 'true'
         env:
           PYMAXIM_VERSION: ${{ inputs.pymaxim }} # via env, never interpolated into the script
         run: scripts/smoke-reachy-release.sh ${PYMAXIM_VERSION:+"$PYMAXIM_VERSION"}
       - name: Check the console bundle a pymaxim release vendored
-        if: inputs.vendor_check != ''
+        if: steps.pin.outputs.changed == 'true' && inputs.vendor_check != ''
         env:
           PYMAXIM_VERSION: ${{ inputs.vendor_check }}
         run: python3 scripts/check_pymaxim_vendor.py "$PYMAXIM_VERSION"
