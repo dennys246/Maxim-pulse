@@ -5,6 +5,14 @@
 # (`reachy-mini[gstreamer]>=1.8.3,<2.0` in pymaxim's pyproject) — we do not
 # double-pin it here, so the version-match-after-reflash rule has one owner.
 # This target versions on Pollen's SDK cadence (CLAUDE.md § Versioning).
+# The app is installed onto the robot with pip, from a checkout whose
+# maxim_reachy_app/ui_dist/ holds the extracted reachy-dist.tar.gz (README §
+# vendoring). Without the package-data rule below, pip silently drops ui_dist/
+# and the robot serves no console page (found by the release acceptance run).
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "maxim-reachy-app"
 version = "0.3.0"
@@ -48,3 +56,9 @@ testpaths = ["tests"]
 # Make `python -m pytest apps/reachy -q` work from the repo root (CLAUDE.md/CI)
 # without installing the package: put this directory on sys.path.
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["maxim_reachy_app*"]
+
+[tool.setuptools.package-data]
+maxim_reachy_app = ["ui_dist/**/*"]
