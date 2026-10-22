@@ -12,6 +12,10 @@ vendored maxim-ui.json against pulse's own tags:
   wheel was uploaded and was built for the wheel's console contract, its stamp
   matches the server's contract, and it was built from a clean tree.
 
+"Newest" is the highest STABLE semver tag (vMAJOR.MINOR.PATCH). Pre-release
+tags (v0.5.0-rc.1) are never what a release should vendor, and tag creation
+order is not version order (a v0.4.2 hotfix can be tagged after v0.5.0).
+
 Run it after every pymaxim release (CLAUDE.md § Versioning). Stdlib only; needs
 pulse's tags locally (`git fetch --tags`) and network access to PyPI.
 """
@@ -50,6 +54,32 @@ def _wheel(version: str) -> tuple[zipfile.ZipFile, float]:
         return zipfile.ZipFile(io.BytesIO(r.read())), uploaded
 
 
+STABLE_TAG = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
+
+
+def stable_version(tag: str) -> tuple[int, int, int] | None:
+    """(major, minor, patch) for a stable release tag; None for pre-releases and anything else."""
+    m = STABLE_TAG.fullmatch(tag)
+    return (int(m[1]), int(m[2]), int(m[3])) if m else None
+
+
+def newest_for_contract(
+    tags: list[tuple[str, float, str | None]], uploaded: float, contract: str | None
+) -> str | None:
+    """The highest stable tag created by `uploaded` whose contract is `contract`.
+
+    `tags` is (tag, created_at, contract) per pulse tag.
+    """
+    eligible = [
+        (version, tag)
+        for tag, created, tag_contract in tags
+        if (version := stable_version(tag)) is not None
+        and created <= uploaded
+        and tag_contract == contract
+    ]
+    return max(eligible)[1] if eligible else None
+
+
 def _tag_contract(tag: str) -> str | None:
     try:
         return json.loads(_git("show", f"{tag}:packages/kit/openapi.json"))["info"][
@@ -80,9 +110,11 @@ def main() -> int:
         "for-each-ref", "refs/tags/v*", "--format=%(refname:short) %(creatordate:unix)"
     ).splitlines():
         tag, _, when = line.partition(" ")
-        if float(when) <= uploaded and _tag_contract(tag) == server:
-            tags.append((float(when), tag))
-    expected = max(tags)[1] if tags else None
+        if (
+            stable_version(tag) is not None
+        ):  # skip reading a pre-release's contract at all
+            tags.append((tag, float(when), _tag_contract(tag)))
+    expected = newest_for_contract(tags, uploaded, server)
 
     print(
         f"pymaxim {version}: server contract {server}, uploaded {datetime.fromtimestamp(uploaded):%Y-%m-%d %H:%M}"
