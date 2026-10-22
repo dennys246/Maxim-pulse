@@ -4,8 +4,10 @@ import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { DESKTOP, DEVICE, SPOKEN_FILE, launch, sleep, suite, visible } from './lib.mjs'
 
 const { check, done } = suite('pairing')
+// The announcer runs on a server thread; give it a loaded CI box's worth of time (one
+// candidate run on 2026-10-21 missed a 5 s window, then 3/3 passed).
 const heard = async () => {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 200; i++) {
     if (existsSync(SPOKEN_FILE)) return readFileSync(SPOKEN_FILE, 'utf8').trim()
     await sleep(100)
   }
@@ -38,10 +40,23 @@ check(
 )
 
 if (existsSync(SPOKEN_FILE)) unlinkSync(SPOKEN_FILE)
-await ask.click()
+const [asked] = await Promise.all([
+  page.waitForResponse((r) => r.url().endsWith('/api/pair/request'), { timeout: 15_000 }),
+  ask.click(),
+])
 const code = await heard()
-check('the robot "spoke" a 6-digit code', code !== null && /^\d{6}$/.test(code))
-check('the code never reaches the page', code !== null && !(await page.content()).includes(code))
+check(
+  'the robot "spoke" a 6-digit code',
+  code !== null && /^\d{6}$/.test(code),
+  code === null ? `no code within 20 s; /api/pair/request answered HTTP ${asked.status()}` : '',
+)
+if (code === null) {
+  // Every later step needs the code: report, don't crash on a timeout further down.
+  await browser.close()
+  done()
+  process.exit()
+}
+check('the code never reaches the page', !(await page.content()).includes(code))
 
 // a wrong code is refused with the server's own reason; the box stays claimable
 await page.getByLabel('Spoken code').fill(code === '000000' ? '111111' : '000000')
