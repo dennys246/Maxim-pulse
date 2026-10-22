@@ -63,14 +63,17 @@ failure is the finding: report it to pymaxim, or fix pulse if it's pulse's.
 
 ## Tier B — a live agent (dev machine, real LLM)
 
-Tier A seeds the run history with pymaxim's writers; it never watches Maxim *work*. Use a
-machine with a working `lanes.large` placement (or a cloud key), and a clean venv with the
-release, not a dev checkout:
+Tier A seeds the run history with pymaxim's writers; it never watches Maxim *work*. On a
+machine with working LLM routing (`~/.config/maxim`), one command builds the release tree, installs
+the release into a throwaway venv and HOME (copying your routing and keys, never your console
+token) and opens both consoles signed in:
 
 ```bash
-uv venv /tmp/accept && uv pip install -p /tmp/accept 'pymaxim[console]==<version>'
-/tmp/accept/bin/maxim serve     # open the printed URL
+scripts/live.sh --pymaxim <version | wheel> --with <pending robot PR#> --agent
 ```
+
+`q` stops it and deletes everything it made. The same command without `--agent` is the quickest
+way to *look* at any PR: `scripts/live.sh --with <PR#>`.
 
 - [ ] No contract-mismatch banner; the backend chip shows `<version>`.
 - [ ] Start a short task, something that uses two or three tools.

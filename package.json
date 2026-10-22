@@ -22,7 +22,8 @@
     "size:reachy": "node scripts/size-reachy.mjs",
     "dist:pack": "node scripts/pack-dist.mjs",
     "stamp": "node scripts/stamp-dist.mjs",
-    "e2e": "scripts/e2e.sh"
+    "e2e": "scripts/e2e.sh",
+    "live": "scripts/live.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
