@@ -45,6 +45,10 @@ pnpm e2e [<pymaxim version>]
 # automated check against what users install — vendored bundle, oldest/newest Python, upgrade,
 # the real robot install. Then Tiers B (live agent) and C (robot): docs/release-checklist.md.
 scripts/release-acceptance.sh <pymaxim version | wheel>
+
+# See it live (reviewing a PR, or before a release): both consoles signed in over a real pymaxim,
+# in a throwaway worktree + venv + HOME; prints the robot's spoken code; q deletes everything.
+pnpm live --pymaxim <version | wheel> [--with <PR#>]... [--agent]
 ```
 
 **Fakes prove wiring; only real releases prove compatibility.** Every unit test fakes pymaxim with
