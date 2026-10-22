@@ -116,14 +116,18 @@ def main() -> int:
     parser.add_argument(
         "--reachy-app",
         type=Path,
-        required=True,
-        help="apps/reachy (the bootstrap package root)",
+        help="apps/reachy (the bootstrap package root); omit with --installed",
     )
     parser.add_argument(
         "--ui-dist",
         type=Path,
-        required=True,
-        help="the built Reachy bundle (apps/reachy/ui/dist)",
+        help="the built Reachy bundle (apps/reachy/ui/dist); omit with --installed",
+    )
+    parser.add_argument(
+        "--installed",
+        action="store_true",
+        help="smoke the PIP-INSTALLED app exactly as the robot runs it: its own default"
+        " bundle path, and the real Pollen SDK must import",
     )
     parser.add_argument(
         "--voice-timeout",
@@ -132,12 +136,15 @@ def main() -> int:
         help="seconds to wait for the voice to load",
     )
     args = parser.parse_args()
+    if not args.installed and (args.reachy_app is None or args.ui_dist is None):
+        parser.error("--reachy-app and --ui-dist are required unless --installed")
 
-    sys.path.insert(0, str(args.reachy_app.resolve()))
+    if not args.installed:
+        sys.path.insert(0, str(args.reachy_app.resolve()))
     from importlib.metadata import version
 
     from maxim.console.ui_bundle import CONSOLE_CONTRACT_VERSION
-    from maxim_reachy_app.app import BootstrapConfig, _default_serve
+    from maxim_reachy_app.app import BootstrapConfig, ReachyMiniApp, _default_serve
 
     print(
         f"pymaxim {version('pymaxim')} (console contract {CONSOLE_CONTRACT_VERSION})",
@@ -146,8 +153,22 @@ def main() -> int:
     announcer_log = _Announcer()
     logging.getLogger("maxim").addHandler(announcer_log)
 
+    ui_dist = BootstrapConfig().ui_dist if args.installed else args.ui_dist
+    if args.installed:
+        # 0. the installed app is the real thing: its bundle shipped, the SDK is Pollen's
+        check(
+            ui_dist.is_dir() and "site-packages" in str(ui_dist),
+            "the installed app ships its own UI bundle",
+            str(ui_dist),
+        )
+        check(
+            ReachyMiniApp.__module__.startswith("reachy_mini"),
+            "the app subclasses the real Pollen ReachyMiniApp",
+            f"{ReachyMiniApp.__module__}.{ReachyMiniApp.__qualname__}",
+        )
+
     # 1. the bundle the robot serves was built for this server
-    stamp_path = args.ui_dist / "maxim-ui.json"
+    stamp_path = ui_dist / "maxim-ui.json"
     stamp = json.loads(stamp_path.read_text()) if stamp_path.is_file() else {}
     check(
         stamp.get("target") == "reachy"
@@ -163,7 +184,7 @@ def main() -> int:
         host="127.0.0.1",
         port=port,
         advertised_hosts=("127.0.0.1",),
-        ui_dist=args.ui_dist,
+        ui_dist=ui_dist,
     )
     server = _default_serve(config, robot)
     try:

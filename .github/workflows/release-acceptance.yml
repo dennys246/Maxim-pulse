@@ -1,0 +1,65 @@
+name: Release acceptance
+
+# Tier A of docs/release-checklist.md, on demand: does pulse fully work on a
+# pymaxim release? scripts/release-acceptance.sh, split across the runners each
+# part needs — desktop browser checks on x64 Ubuntu (ships Chrome), the robot
+# install on Linux arm64 (the robot's platform). Run it on every pymaxim release
+# before tagging the pulse release that pins it.
+on:
+  workflow_dispatch:
+    inputs:
+      pymaxim:
+        description: 'pymaxim version (as published on PyPI)'
+        required: true
+      reachy_app_ref:
+        description: 'git ref whose apps/reachy to smoke as the robot app (blank = this ref)'
+        required: false
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags, for the vendor check
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@v6
+      - name: vendor, e2e, shipped bundle, upgrade
+        env:
+          PYMAXIM_VERSION: ${{ inputs.pymaxim }} # via env, never interpolated into the script
+          STEPS: vendor e2e shipped upgrade
+        run: scripts/release-acceptance.sh "$PYMAXIM_VERSION"
+
+  robot:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: The robot app under test
+        env:
+          REF: ${{ inputs.reachy_app_ref }}
+        run: |
+          if [ -n "$REF" ]; then
+            git fetch -q origin "$REF" && mkdir -p /tmp/app && git archive FETCH_HEAD apps/reachy | tar -x -C /tmp/app
+            echo "REACHY_APP=/tmp/app/apps/reachy" >>"$GITHUB_ENV"
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile && pnpm --filter @maxim/reachy-ui build
+      - uses: astral-sh/setup-uv@v6
+      # The robot's OS image ships these; the Pollen SDK's gstreamer extra builds against them.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libcairo2-dev libgirepository1.0-dev
+      - name: robot install
+        env:
+          PYMAXIM_VERSION: ${{ inputs.pymaxim }}
+          STEPS: robot
+        run: scripts/release-acceptance.sh "$PYMAXIM_VERSION"
