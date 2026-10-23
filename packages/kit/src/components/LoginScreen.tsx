@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { Cmd, CmdBlock } from '../design/primitives'
 import { extractToken } from '../facade/auth'
 import { useFacade } from '../facade/context'
 import { FacadeError } from '../facade/http'
@@ -73,7 +74,7 @@ export function LoginScreen({ rejected, onSubmit, pairing = false, banner }: Log
               className="mt-3 rounded-panel border border-warn bg-scene px-3 py-2 text-sm text-warn"
             >
               Your stored token was refused — it may have been rotated (
-              <code className="font-mono">maxim serve --rotate-token</code>). Sign in again below.
+              <Cmd>maxim serve --rotate-token</Cmd>). Sign in again below.
             </p>
           )}
 
@@ -88,23 +89,18 @@ export function LoginScreen({ rejected, onSubmit, pairing = false, banner }: Log
             <p className="mt-3 text-sm text-fg-muted">
               {pairing ? (
                 <>
-                  On the machine running this console:{' '}
-                  <code className="font-mono">maxim serve --show-token</code> prints the token.
+                  On the machine running this console: <Cmd>maxim serve --show-token</Cmd> prints
+                  the token.
                 </>
               ) : (
                 <>
                   This console is protected by a token that lives on the machine running{' '}
-                  <code className="font-mono">maxim serve</code>. Open the{' '}
-                  <code className="font-mono">#token=</code> link it printed at startup, or print
-                  the token again with
+                  <Cmd>maxim serve</Cmd>. Open the <code className="font-mono">#token=</code> link
+                  it printed at startup, or print the token again with
                 </>
               )}
             </p>
-            {!pairing && (
-              <pre className="mt-2 rounded-panel border border-edge bg-bio px-3 py-2 font-mono text-sm text-scene-fg">
-                maxim serve --show-token
-              </pre>
-            )}
+            {!pairing && <CmdBlock>maxim serve --show-token</CmdBlock>}
             <label className="mt-4 block text-sm text-fg-muted" htmlFor="console-token">
               Console token
             </label>

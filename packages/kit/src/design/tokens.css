@@ -30,6 +30,11 @@
   --mx-warn: #f0b429;
   --mx-err: #f06449;
 
+  /* -- a command the user runs (Cmd): a hue no status or link uses -- */
+  --mx-cmd-fg: #cdb2ff;
+  --mx-cmd-bg: #1d1833;
+  --mx-cmd-edge: #3a2f63;
+
   /* -- overlay scrim (Drawer/modal backdrops) -- */
   --mx-overlay: rgba(0, 0, 0, 0.4);
 
@@ -59,4 +64,14 @@
 
   --mx-text: #2a3245;
   --mx-text-muted: #667089;
+
+  /* the dark theme's status hues are too pale on white (1.9–3.2:1); these are ≥4.7:1 (WCAG AA) */
+  --mx-accent: #1f6fd1;
+  --mx-ok: #11734b;
+  --mx-warn: #8a5a00;
+  --mx-err: #b42318;
+
+  --mx-cmd-fg: #5b2fb8;
+  --mx-cmd-bg: #f1ebff;
+  --mx-cmd-edge: #d6c7fb;
 }

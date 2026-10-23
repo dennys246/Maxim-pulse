@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
+import { Cmd } from '../design/primitives'
 import { AuthSession, MemoryTokenStore, type AuthSnapshot } from '../facade/auth'
 import { useFacade } from '../facade/context'
 import { CONTRACT_VERSION } from '../facade/contractVersion'
@@ -145,8 +146,7 @@ export function AuthGate({ children }: AuthGateProps) {
     return helloFailure.kind === 'unreachable' ? (
       <GateNotice title="maxim serve isn't answering" onRetry={retry}>
         <p>
-          Start it with <code className="font-mono">maxim serve</code> (it binds 127.0.0.1), then
-          retry.
+          Start it with <Cmd>maxim serve</Cmd> (it binds 127.0.0.1), then retry.
         </p>
         <p className="text-fg-muted">{helloFailure.detail}</p>
       </GateNotice>
@@ -214,7 +214,7 @@ function SkewBanner({ server }: { server: string }) {
       title="Rebuild the bundle (pnpm build) or match the pymaxim version."
     >
       ⚠ Contract mismatch — this UI was built for {CONTRACT_VERSION}, the server speaks {server}.
-      Rebuild the bundle (<code className="font-mono">pnpm build</code>) or match pymaxim.
+      Rebuild the bundle (<Cmd>pnpm build</Cmd>) or match pymaxim.
     </div>
   )
 }

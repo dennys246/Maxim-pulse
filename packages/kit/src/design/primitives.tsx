@@ -69,3 +69,26 @@ export function Row({
     </div>
   )
 }
+
+/**
+ * Cmd — a command the user types into a terminal (`maxim tunnel key show`).
+ * Monospace in its own colour (a hue no link or status uses) on a faint chip,
+ * so instructions read as "run this" at a glance. Values the user PASTES (an
+ * address template, `Key:`) stay plain `<code>`: they are not commands.
+ */
+export function Cmd({ children }: { children: ReactNode }) {
+  return (
+    <code className="whitespace-nowrap rounded-sm border border-cmd-edge bg-cmd px-1 font-mono text-cmd-fg">
+      {children}
+    </code>
+  )
+}
+
+/** CmdBlock — a command on its own line, styled like Cmd: the one thing on screen to run. */
+export function CmdBlock({ children }: { children: ReactNode }) {
+  return (
+    <pre className="mt-2 rounded-panel border border-cmd-edge bg-cmd px-3 py-2 font-mono text-sm text-cmd-fg">
+      {children}
+    </pre>
+  )
+}

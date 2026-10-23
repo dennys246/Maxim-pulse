@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useFacade } from '../facade/context'
 import { FacadeError } from '../facade/http'
 import type { ModelInfo, ProbeResult, SetupResult } from '../facade/types'
-import { Panel, Stack } from '../design/primitives'
+import { Panel, Stack, Cmd } from '../design/primitives'
 import { ConnectionTest } from './ConnectionTest'
 import { ModelPicker } from './ModelPicker'
 
@@ -126,13 +126,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           <p>
             <span className="font-medium">Same network:</span>{' '}
             <code className="font-mono">http://&lt;leader&apos;s IP&gt;:8099/v1</code>. Find the IP
-            on the leader with <code className="font-mono">ipconfig getifaddr en0</code> (macOS) or{' '}
-            <code className="font-mono">hostname -I</code> (Linux).
+            on the leader with <Cmd>ipconfig getifaddr en0</Cmd> (macOS) or <Cmd>hostname -I</Cmd>{' '}
+            (Linux).
           </p>
           <p>
             <span className="font-medium">Over the internet:</span>{' '}
             <code className="font-mono">https://&lt;tunnel hostname&gt;/v1</code>. On the leader,{' '}
-            <code className="font-mono">maxim tunnel status</code> lists the hostname.
+            <Cmd>maxim tunnel status</Cmd> lists the hostname.
           </p>
         </div>
         {LOCAL_NAME_OVER_HTTP.test(leaderUrl.trim()) && (
@@ -157,17 +157,17 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           }}
         />
         <p id="setup-mesh-key-help" className="text-xs text-fg-muted">
-          On the leader, run <code className="font-mono">maxim tunnel key show</code> and copy the
-          value after <code className="font-mono">Key:</code>. Not the console token from{' '}
-          <code className="font-mono">maxim serve --show-token</code>, which only signs a browser
-          in.
+          On the leader, run <Cmd>maxim tunnel key show</Cmd> and copy the value after{' '}
+          <code className="font-mono">Key:</code>. Not the console token from{' '}
+          <Cmd>maxim serve --show-token</Cmd>, which only signs a browser in.
         </p>
         {meshKey.trim().startsWith(CONSOLE_TOKEN_PREFIX) && (
           <p role="alert" className="text-xs text-err">
-            That&apos;s a console token (from{' '}
-            <code className="font-mono">maxim serve --show-token</code>
-            ), not the leader&apos;s access key. On the leader, run{' '}
-            <code className="font-mono">maxim tunnel key show</code> instead.
+            That&apos;s a console token (from <Cmd>maxim serve --show-token</Cmd>
+            ), not the leader&apos;s access key. On the leader, run <Cmd>
+              maxim tunnel key show
+            </Cmd>{' '}
+            instead.
           </p>
         )}
         <ConnectionTest
