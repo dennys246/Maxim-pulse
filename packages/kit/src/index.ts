@@ -4,7 +4,7 @@
  * subpath export and must never be re-exported here (AGENTS.md § code-split).
  */
 export { ThemeProvider, useTheme, type Theme } from './design/ThemeProvider'
-export { PageShell, Panel, Stack, Row } from './design/primitives'
+export { PageShell, Panel, Stack, Row, Cmd, CmdBlock } from './design/primitives'
 export { TopBar, TopBarButton, TopBarLink } from './design/TopBar'
 export { Drawer } from './design/Drawer'
 export { StatusChip, type StatusChipProps } from './components/StatusChip'

@@ -24,6 +24,10 @@
   --color-err: var(--mx-err);
   --color-overlay: var(--mx-overlay);
 
+  --color-cmd: var(--mx-cmd-bg);
+  --color-cmd-fg: var(--mx-cmd-fg);
+  --color-cmd-edge: var(--mx-cmd-edge);
+
   --font-sans: var(--mx-font-sans);
   --font-mono: var(--mx-font-mono);
 
