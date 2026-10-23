@@ -6,6 +6,11 @@ import { Panel, Stack } from '../design/primitives'
 import { ConnectionTest } from './ConnectionTest'
 import { ModelPicker } from './ModelPicker'
 
+/** pymaxim's console-token prefix (tunnel/keys.py CONSOLE_TOKEN_PREFIX); leader keys are generated without one. */
+const CONSOLE_TOKEN_PREFIX = 'mxc_'
+/** `http://name.local…` — mDNS names often also resolve to a public IPv6 address, which pymaxim refuses over http. */
+const LOCAL_NAME_OVER_HTTP = /^http:\/\/[^/:]+\.local(?:[:/]|$)/i
+
 /**
  * SetupWizard — first-run mesh↔cloud choice, test, save (reachy_mini_app.md
  * screen map; maxim_console.md inventory). Binds SETUP + PROBE + list_models;
@@ -98,30 +103,52 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   if (screen === 'mesh') {
     return (
       <Stack>
-        <h2 className="text-lg font-semibold text-scene-fg">Connect your computer</h2>
+        <h2 className="text-lg font-semibold text-scene-fg">Connect to your leader</h2>
         <p className="text-sm text-fg-muted">
-          On your computer, run <code className="font-mono">maxim</code> — it prints the address to
-          paste here.
+          The leader is the computer that runs the model. You need two things from it: its address
+          and its access key.
         </p>
         <label className="text-sm" htmlFor="setup-leader-url">
-          Address
+          Leader address
         </label>
         <input
           id="setup-leader-url"
+          aria-describedby="setup-leader-url-help"
           className="w-80 rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
-          placeholder="https://… or http://192.168.x.x:8099"
+          placeholder="http://192.168.1.20:8099/v1"
           value={leaderUrl}
           onChange={(e) => {
             setLeaderUrl(e.target.value)
             setProbe(null)
           }}
         />
+        <div id="setup-leader-url-help" className="text-xs text-fg-muted">
+          <p>
+            <span className="font-medium">Same network:</span>{' '}
+            <code className="font-mono">http://&lt;leader&apos;s IP&gt;:8099/v1</code>. Find the IP
+            on the leader with <code className="font-mono">ipconfig getifaddr en0</code> (macOS) or{' '}
+            <code className="font-mono">hostname -I</code> (Linux).
+          </p>
+          <p>
+            <span className="font-medium">Over the internet:</span>{' '}
+            <code className="font-mono">https://&lt;tunnel hostname&gt;/v1</code>. On the leader,{' '}
+            <code className="font-mono">maxim tunnel status</code> lists the hostname.
+          </p>
+        </div>
+        {LOCAL_NAME_OVER_HTTP.test(leaderUrl.trim()) && (
+          <p role="status" className="text-xs text-warn">
+            Use the leader&apos;s IP address instead of a <code className="font-mono">.local</code>{' '}
+            name. On networks with IPv6, those names also resolve to a public address, which Maxim
+            refuses over plain <code className="font-mono">http://</code>.
+          </p>
+        )}
         <label className="text-sm" htmlFor="setup-mesh-key">
-          Access key
+          Leader access key
         </label>
         <input
           id="setup-mesh-key"
           type="password"
+          aria-describedby="setup-mesh-key-help"
           className="w-80 rounded-panel border border-edge bg-bio px-2 py-1 text-sm text-fg"
           value={meshKey}
           onChange={(e) => {
@@ -129,6 +156,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             setProbe(null)
           }}
         />
+        <p id="setup-mesh-key-help" className="text-xs text-fg-muted">
+          On the leader, run <code className="font-mono">maxim tunnel key show</code> and copy the
+          value after <code className="font-mono">Key:</code>. Not the console token from{' '}
+          <code className="font-mono">maxim serve --show-token</code>, which only signs a browser
+          in.
+        </p>
+        {meshKey.trim().startsWith(CONSOLE_TOKEN_PREFIX) && (
+          <p role="alert" className="text-xs text-err">
+            That&apos;s a console token (from{' '}
+            <code className="font-mono">maxim serve --show-token</code>
+            ), not the leader&apos;s access key. On the leader, run{' '}
+            <code className="font-mono">maxim tunnel key show</code> instead.
+          </p>
+        )}
         <ConnectionTest
           request={{ url: leaderUrl, api_key: meshKey === '' ? null : meshKey }}
           onResult={setProbe}

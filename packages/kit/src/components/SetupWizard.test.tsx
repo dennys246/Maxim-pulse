@@ -39,8 +39,8 @@ test('mesh path: Save is gated on a passing test, then writes through SETUP', as
   const onComplete = renderWizard(facade)
 
   await userEvent.click(screen.getByText(/Private & free/))
-  await userEvent.type(screen.getByLabelText('Address'), 'http://leader:8099')
-  await userEvent.type(screen.getByLabelText('Access key'), 'sekrit')
+  await userEvent.type(screen.getByLabelText('Leader address'), 'http://leader:8099')
+  await userEvent.type(screen.getByLabelText('Leader access key'), 'sekrit')
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
 
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
@@ -56,12 +56,45 @@ test('mesh path: Save is gated on a passing test, then writes through SETUP', as
   expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ placement: 'mesh' }))
 })
 
+test('mesh path: says exactly where the address and the key come from', async () => {
+  renderWizard(new MockFacade())
+  await userEvent.click(screen.getByText(/Private & free/))
+  const address = screen.getByLabelText('Leader address')
+  expect(address).toHaveAccessibleDescription(/:8099\/v1.*maxim tunnel status/s)
+  const key = screen.getByLabelText('Leader access key')
+  expect(key).toHaveAccessibleDescription(/maxim tunnel key show.*Key:.*Not the console token/s)
+})
+
+test('mesh path: a pasted console token is called out before any test', async () => {
+  renderWizard(new MockFacade())
+  await userEvent.click(screen.getByText(/Private & free/))
+  await userEvent.type(screen.getByLabelText('Leader access key'), 'sekrit-leader-key')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  await userEvent.clear(screen.getByLabelText('Leader access key'))
+  await userEvent.type(screen.getByLabelText('Leader access key'), 'mxc_' + 'a'.repeat(43))
+  expect(screen.getByRole('alert')).toHaveTextContent(/console token.*maxim tunnel key show/s)
+})
+
+test('mesh path: an http .local address gets the use-the-IP hint', async () => {
+  renderWizard(new MockFacade())
+  await userEvent.click(screen.getByText(/Private & free/))
+  const address = screen.getByLabelText('Leader address')
+  await userEvent.type(address, 'http://big-mac-mini.local:8099/v1')
+  expect(screen.getByRole('status')).toHaveTextContent(/IP address instead of a \.local/)
+  await userEvent.clear(address)
+  await userEvent.type(address, 'http://10.6.0.33:8099/v1')
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  await userEvent.clear(address)
+  await userEvent.type(address, 'https://leader.local/v1') // https is allowed to a public host
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
 test('mesh path: a failing test keeps Save locked', async () => {
   const facade = new MockFacade()
   facade.probeResult = { status: 'fail', outcome: 'unreachable', message: 'no route' }
   renderWizard(facade)
   await userEvent.click(screen.getByText(/Private & free/))
-  await userEvent.type(screen.getByLabelText('Address'), 'http://leader:8099')
+  await userEvent.type(screen.getByLabelText('Leader address'), 'http://leader:8099')
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
   await screen.findByText(/no route/)
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -129,7 +162,7 @@ test('SETUP 501 renders as pending, not an error', async () => {
     .mockRejectedValue(new FacadeError(501, 'SETUP seam not landed', '/api/setup/mesh'))
   renderWizard(facade)
   await userEvent.click(screen.getByText(/Private & free/))
-  await userEvent.type(screen.getByLabelText('Address'), 'http://leader:8099')
+  await userEvent.type(screen.getByLabelText('Leader address'), 'http://leader:8099')
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
   await screen.findByText(/△|✓/)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))

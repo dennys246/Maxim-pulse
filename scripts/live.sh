@@ -42,6 +42,11 @@ while [ $# -gt 0 ]; do
     *) echo "live: unknown option $1 (see --help)" >&2; exit 2 ;;
   esac
 done
+if [[ ( "$pymaxim" == *.whl || "$pymaxim" == */* ) && ! -f "$pymaxim" ]]; then
+  echo "live: no such wheel: $pymaxim" >&2
+  echo "      (macOS clears /tmp on restart — download candidates somewhere that persists)" >&2
+  exit 1
+fi
 desktop_port=$port device_port=$((port + 1))
 for p in $desktop_port $device_port; do
   if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then
