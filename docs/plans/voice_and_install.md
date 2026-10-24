@@ -13,6 +13,33 @@ Every claim below was traced to code. The main ones were re-checked against the 
 Owner's goal: *simplify and better abstract speech and listening in Maxim, for pulse and in general,
 and make install far simpler.*
 
+> **Status (2026-10-24): pymaxim adopted this note's thesis and wrote the authoritative plan for its side:
+> [`docs/plans/embodied_device.md`](https://github.com/dennys246/Maxim/pull/1440) (Maxim PR #1440).
+> Where the two differ, #1440 wins for pymaxim. This note now owns pulse's side (§6).** Differences from §2–§5 below:
+> - **Audio port:** pymaxim reshapes its existing `hardware/streams.py::AudioStream` (`push_sample` returns
+>   `PlayReport`, whose `__bool__` is `ok`) instead of adding `AudioOutput`/`AudioInput`. Listening rides
+>   `CaptureManager` as the one mic consumer. No new top-level packages.
+> - **The facade:** `run_device` lives in `maxim.console.device` (pymaxim's F4).
+> - **One turn entry:** typed and voice both go through `MaximHandle.talk(..., source=)`, as the single *framed*
+>   (untrusted) inbound entry. There is no separate `submit_utterance`.
+> - **Head:** the wobbler is disabled explicitly. Speech never moves the head, and all motion stays on `goto_target`.
+> - **"Atonia":** pymaxim's *atonia gate* is its existing advisor-mode guarantee (a closed builder that refuses any
+>   embodiment). It ships independently. The listening gate in §5.2 is therefore renamed the **self-speech
+>   (half-duplex) gate**. "Atonia within embodiment" is a later extension pymaxim prepares for (`embody()` as the one
+>   attach point, an embodied actuation census) but hasn't decided.
+> - **Decisions as recorded by pymaxim:**
+>   - STT on the leader first, with VAD and endpointing on the robot. A brokering peer and on-robot STT come later.
+>   - Listening only after the wake word "Maxim".
+>   - A private `-dev` Space first.
+>   - The 1.4 memory merge as a whole-or-nothing `migrate_agent_state` that **refuses on conflict**, with a backup.
+>
+>   Two of these differ from the owner's answers in §5 (dynamic listening; a per-store merge). §6.4 tracks them.
+> - **Timing:** the device work runs on its own clock and ships as a patch when ready. The bounded defects come in 1.3.4:
+>   the speaker sink (#1435), voice input (#1436), `--tts` (#1437), the bounded stop (#1438). Pulse's Python imports
+>   (`VoiceProvisioner`, `make_pairing_announcer`, `make_device_speak_sink`, `build_app(pairing_announcer=,
+>   pairing_ready=)`) stay, or get one release of deprecation. When `Voice` lands, `pairing_ready` means "the robot
+>   played it".
+
 ---
 
 ## 1. What the robot taught us
@@ -397,3 +424,65 @@ into `reachy` with the same tool, so what the owner told the robot isn't lost.
 - property tests for the merge: idempotent, no loss, evidence conserved;
 - kill-mid-fold, reusing the atomic-install tests;
 - an architecture test that nothing but the factory writes agent state.
+
+---
+
+## 6. Pulse's side, against pymaxim's plan (#1440)
+
+### 6.1 Now (v0.4.3, on pymaxim 1.3.3)
+- **#57 (the robot fixes):**
+  - the mDNS name;
+  - the `__main__` launcher;
+  - the base `__init__`;
+  - schema-only config reads;
+  - the bootstrap as #1435's **interim lifecycle owner** for bare-SDK embedders: `start_playing()` and
+    `disable_wobbling()` once at start, `stop_playing()` last.
+
+  Proven by the daemon-launch smoke on linux/arm64 against 1.3.3.
+- **Release notes say plainly** that voice conversation and the embodied agent come with pymaxim's device work.
+  Tier C in the release checklist is narrowed to match.
+
+### 6.2 Alongside pymaxim's steps (from #1440 §5, "Pulse, alongside")
+
+| pymaxim step | Pulse work |
+| --- | --- |
+| 1. One agent (handle on `app.state`, `talk(source=)`) | nothing to wire. The robot's typed chat moves to the `reachy` agent; pulse re-verifies on the robot with `robot-check.sh` |
+| 2. The bounded stop (#1438 / #1344) | the daemon-faithful harness asserts SIGINT-to-exit within the SDK's budget (read from the SDK) |
+| 3. `Pcm`, the reshaped `AudioStream`, `Voice` | pairing UI unchanged. `pairing_ready` now means *played*: on a device that can't play, the sign-in shows paste only. Pulse's smoke asserts on what's **heard** (SDK-faithful fake) |
+| 4. `adopt` + `embody` (+ the embodied census) | the bootstrap drops its interim `start_playing`/`disable_wobbling` once `embody()` owns them; a test pins that there's exactly one owner |
+| 5. Listening (wake word, STT on the leader, half-duplex) | a status chip ("Listening · say 'Maxim'" / "Listening · on the leader" / reason + fix) and a mute toggle, once the status seam exists |
+| 6. `run_device` (`console/device.py`) | the robot app shrinks to SDK glue (~35 lines, §3), and `app.py` is deleted |
+| 7. The status seam (0.7.0 if still unreleased) | regenerate from the merged `openapi.json`; device-status chips. **Plan the 0.7.0 tag with pymaxim up front:** pulse tags first, pymaxim vendors, then releases |
+| 8. The `robot` extra + the device log | the robot app depends on `pymaxim[robot]` in **base** `dependencies` (the dashboard installs without extras); the Logs drawer shows the device log |
+
+**Independent of the steps (pulse's own):**
+- **Space publishing:** a private `-dev` Space from CI. It goes public when pymaxim's R2 reachy cell and
+  `robot-check.sh` pass on a release candidate.
+- **The daemon-faithful harness:** `python -u -m`, as a non-root user, with SIGINT.
+- **SDK-generated contract tests.**
+- **`robot-check.sh <host>`.**
+- **Keep pulse's Python imports compatible** within one deprecation window, and act on each named change in
+  pymaxim's release note.
+
+### 6.3 The robot's board (answers #1440's open question)
+
+Read on the owner's robot, 2026-10-24 (`/proc/device-tree/model`): **Raspberry Pi Compute Module 4 Rev 1.1**, 4 cores
+(Cortex-A72), **3.7 GiB RAM**, about 3.0 GiB available with the app running.
+- **STT on the leader is clearly right.** An on-robot offline fallback is limited to `tiny.en`, or `base.en` at
+  best (int8, CPU).
+- **Memory is tight:** R1's second, idle agent costs real RAM, so step 1 (one agent) also relieves pressure.
+
+### 6.4 Open with the owner
+1. **Listening policy.**
+   - The owner asked for **dynamic listening** (dormant / attentive / engaged / speaking, §5.2).
+   - pymaxim records **wake-word only** for the first version.
+   - Proposed: ship wake-word first (simple, private), with the state machine as the stated next step on the same
+     `Listener`.
+2. **The memory merge.**
+   - The owner asked to **fold** both homes.
+   - pymaxim records a whole-or-nothing migration that **refuses on conflict**.
+   - That covers every case except a person who used both the CLI and the robot app. Proposed: ship
+     refuse-on-conflict in 1.4, with the per-store merge (§5.4) as a follow-up, only if a real conflict shows up.
+3. **A brokering peer for STT** (e.g. the owner's Mac): not in pymaxim's first step (leader first). The lane design
+   (§5.1) allows it later with no format change, because the endpoint is the standard
+   `/v1/audio/transcriptions`.
