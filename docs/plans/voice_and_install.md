@@ -245,7 +245,7 @@ with pymaxim 1.3.4. Tier C in `docs/release-checklist.md` is narrowed to match.
 2. One ≤ 15 s stop (R2).
 3. `Pcm` + `AudioOutput` + `Voice`, with the bug fixes (R6, R7 speech).
 4. `MaximHandle.submit_utterance`.
-5. `AudioInput` + `AudioHub` + `Listener`, with device defaults, replacing the dead path (R5, R8).
+5. `AudioInput` + `AudioHub` + `Listener`, replacing the dead path (R5, R8). STT runs as a **routable `lanes.stt`** served at the standard `POST /v1/audio/transcriptions` on the leader or any brokering peer (§5.1). The listening state machine and **self-speech atonia** are included from day one (§5.2).
 6. `ReachyMiniController.adopt` + `MaximHandle.embody` (R3 motion, R4).
 7. `maxim.device.run_device`.
 8. The device status seam.
@@ -261,16 +261,139 @@ with pymaxim 1.3.4. Tier C in `docs/release-checklist.md` is narrowed to match.
 - shrinking the app to SDK glue when `run_device` lands.
 
 **1.4 (refactor):**
-- `selfy.Maxim` on `MaximHandle`, with the memory-home migration;
+- `selfy.Maxim` on `MaximHandle`, then the **memory fold** (§5.4);
+- **sleep atonia** and `dormant` listening tied to `ProcessingState`, with all inhibition routed through one `AtoniaGate` (§5.2);
 - moving the remaining raw head moves onto the controller (pymaxim's hardware-safety rule);
 - mDNS leader discovery and peer pairing by code;
 - an architecture test so no second agent builder can reappear.
 
-## 5. Decisions for the owner
+## 5. Owner decisions (2026-10-24), and how each is carried out
 
-1. **Speech-to-text on the robot (CPU, `base.en`), or on the leader?** On the leader means sending
-   audio over the LAN, with better accuracy and a lighter robot.
-2. **Always listening while the Console is in talk mode, or only after the wake word "Maxim"?**
-3. **A public Hugging Face Space (listed for every Reachy owner) or private first?**
-4. **Merge the CLI's and the app's memory** (`~/.maxim/memory` → `~/.maxim/agents/reachy`)
-   **in 1.4?**
+### 5.1 Speech-to-text runs on the leader, or on any peer that brokers it (e.g. this Mac)
+
+**STT becomes a routable lane, like the LLM.**
+- `lanes.stt` mirrors `lanes.large`: it's either `local`, or a `remote_url` pointing at **any node**
+  (the leader, or a peer that brokers the call, such as the owner's Mac).
+- The robot's Console setup picks it the same way it picks the leader.
+
+**The robot keeps the cheap, private part and sends only what's needed:**
+- capture, the endpointer (VAD, with the XVF3800 speech flag as a pre-gate), and the atonia gate
+  (5.2) stay on the robot;
+- only **finished utterances** leave it (16 kHz mono, a couple of seconds, tens of KB), never a
+  continuous stream;
+- the text comes back, and `submit_utterance` hands it to the robot's own agent;
+- the reply's LLM call goes to the leader as today.
+
+**The industry-standard wire format: OpenAI's `POST /v1/audio/transcriptions`.**
+- It's multipart, `file` + `model` (+ `language`, `response_format`). The same API is served by
+  whisper.cpp's server and faster-whisper servers.
+- pymaxim's **LeaderProxy** (`:8099`, already OpenAI-compatible for `/v1/models` and
+  `/v1/chat/completions`) serves it on any node with the `audio` extra, behind the same auth and
+  logging.
+- Because it's the standard, a brokering Mac (Apple Silicon running whisper `large-v3-turbo` or MLX)
+  or a third-party server can stand in with no code change.
+
+**Routing preference, with honest fallback:** the configured broker or leader, then a local tiny
+model (`base.en`, int8) if it's installed, then *listening unavailable*, with the reason shown in
+the status row.
+
+**Privacy:** audio stays on the LAN by default. A cloud STT provider is an explicit opt-in,
+labelled the way the cloud LLM is.
+
+**Generalizes:** the same lane pattern can later move **TTS** to a broker too, so the robot only
+plays audio. That's not needed now.
+
+### 5.2 Dynamic listening with an atonia gate
+
+**Listening becomes a state machine,** driven by the agent's `ProcessingState` (`AWAKE`/`SLEEP`)
+and the conversation, and shown live in the status row:
+
+| State | Mic | Acts on what it hears | Enters when |
+| --- | --- | --- | --- |
+| `off` | off | — | no consent, no device, or the owner muted it |
+| `dormant` | on | **wake word only** (fuzzy "Maxim"/"Reachy") | `ProcessingState.SLEEP`, rest, consolidation |
+| `attentive` | on | an utterance that's **addressed**: wake word, or the speaker facing the robot (DoA within a cone) | awake and idle |
+| `engaged` | on | any utterance, with no wake word | within a follow-up window (e.g. 8 s) after Maxim replies, or when talk mode is on in the Console |
+| `speaking` | on | **nothing** (atonia, below) | while `Voice` is playing, plus a short echo tail |
+
+**The atonia gate:** like REM-sleep atonia, perception keeps running but output is inhibited.
+- One `AtoniaGate` in pymaxim is the single answer to **"may I act on this now?"**.
+- It's consulted by:
+  - the Listener's dispatch, before an utterance reaches the agent;
+  - `Voice.say`;
+  - the motion controller.
+- Three cases:
+  - **Self-speech atonia** (`speaking`): Maxim never hears itself as a new turn. This replaces relying
+    on the XVF3800's AEC alone.
+  - **Sleep atonia** (`dormant`, consolidation): no head motion and no speech while it consolidates.
+    Only arousal lifts it: the wake word, a loud event, or the owner's voice.
+  - **Safety atonia:** the existing fear gate and `DefaultNetwork.inhibit()` route through the same
+    gate, so "don't move" has one owner.
+- It builds on what exists rather than adding a parallel mechanism: `ProcessingState`, `InhibitionMixin`
+  (`default_network/inhibition.py`), the motor backend's `_inhibit_dn` and the fear gate.
+
+**What the UI shows:** a live chip ("Listening · engaged", "Asleep · atonia", "Speaking"), with a
+**mute** toggle that forces `off`.
+
+### 5.3 The Hugging Face Space: private while in development, public with a public Maxim release
+
+- CI publishes every pulse robot release to a **private** Space. Testers install it by id through
+  the dashboard ("install private space"); branch builds go to a private `-dev` Space.
+- At the first **public** Maxim release that includes the robot app, the owner flips the Space to
+  public and opens the PR to Pollen's `app-list.json`. Both are release-checklist items.
+- The Space's README front-matter, PRIVACY link and `short_description` are written from day one,
+  so going public is just the visibility switch.
+
+### 5.4 Fold the memory folders in 1.4
+
+**The canonical home is `~/.maxim/agents/<agent_id>/`,** the factory layout `MaximHandle` uses.
+`~/.maxim/memory/` (the CLI's `selfy.Maxim`, `utils/paths.py::user_memory`) becomes legacy.
+
+**Order matters.**
+1. First **re-base the CLI on `MaximHandle`** (1.4 item 1), so nothing writes the legacy folder any
+   more.
+2. Then fold.
+
+Folding first would let the old CLI keep writing the old place.
+
+**The three cases:**
+
+| Legacy `memory/` | `agents/reachy/` | Action |
+| --- | --- | --- |
+| has state | empty | **move** as is, with the existing `migrate_agent_state` (atomic, whole or nothing). Automatic on first 1.4 start; lossless, so no prompt |
+| empty | anything | nothing |
+| has state | has state | **merge**. The existing helper refuses this on purpose. This is the new part, and it **asks first** (CLI prompt, and a Console banner "Two memories found: fold them?"), because merging is a judgment |
+
+**Merge rules, per store** (`AGENT_STATE_FILES`):
+
+| Store | Rule |
+| --- | --- |
+| `hippocampus.json`, `memories.json` | episodes are **unioned**: dedupe by episode id, then by (timestamp, content hash), keep chronological order |
+| `nac.json` | causal links **combine evidence**: sum the counts and recompute confidence from the combined counts (never average two confidences) |
+| `ec.json`, `atl.json`, `angular_gyrus.json` | concept and graph **union** with dedupe. For conflicting scalars, keep the side with more evidence, ties to the newer |
+| `scn.json` | merge the timelines; recompute the circadian phase from the merged events |
+| `cerebellum.json` | the CLI never saved one (R3), so the app's is kept |
+| `memory_hub/` | union of sessions by id |
+
+**Mechanism:** `maxim memory fold --from ~/.maxim/memory --into reachy [--dry-run]`.
+- **Dry run:** per-store counts, duplicates and conflicts, and what each rule will do.
+- **Real run:**
+  - build the merged agent in a staging directory;
+  - **validate it** by loading it with the real loaders (`create_full_agent(auto_load=True)` in a
+    sandbox);
+  - check invariants: no episode lost (merged = union minus duplicates), causal evidence conserved;
+  - **atomic swap** with the same `atomic_install_dir` the existing helper uses.
+- **Backups:** both originals are kept, as `memory.folded-<UTC>/` and `agents/reachy.pre-fold-<UTC>/`.
+- **Idempotent:** a marker `agents/reachy/FOLDED_FROM.json` (sources, counts, versions, rules
+  version) makes a re-run a no-op, and `maxim memory unfold` restores the backups.
+- **`maxim doctor`** warns while the legacy folder still holds state.
+
+**An early user of the same tool, before 1.4:** the robot app's accidental `console_agent` memories
+(R1: typed chat went to the wrong agent). When 1.3.4 makes chat use `reachy`, fold `console_agent`
+into `reachy` with the same tool, so what the owner told the robot isn't lost.
+
+**Tests:**
+- fixture snapshots of both layouts, scrubbed from the owner's real desktop and robot;
+- property tests for the merge: idempotent, no loss, evidence conserved;
+- kill-mid-fold, reusing the atomic-install tests;
+- an architecture test that nothing but the factory writes agent state.
