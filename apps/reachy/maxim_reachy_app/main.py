@@ -13,7 +13,7 @@ reachy_mini 1.8.3, ``apps/sources/local_common_venv.py`` + the dashboard's
   this file's source). In the shared-venv case it
   imports the entry point and reads the CLASS attribute instead.
 * The dashboard rewrites the link's hostname to whatever the dashboard itself
-  was opened with (``reachy.local`` or a bare IP) and keeps port, path and
+  was opened with (``reachy-mini.local`` or a bare IP) and keeps port, path and
   fragment. That is why ``app.py`` admits every such host to the console's
   Host/Origin guard.
 

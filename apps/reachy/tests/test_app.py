@@ -21,6 +21,7 @@ import pytest
 
 from maxim_reachy_app import MaximReachyApp
 from maxim_reachy_app.app import (
+    LEGACY_MDNS_HOST,
     MDNS_HOST,
     BootstrapConfig,
     MaximNotInstalledError,
@@ -258,7 +259,7 @@ def test_default_serve_mints_the_token_first_and_admits_every_advertised_host(
         {
             "ui_dist": tmp_path,
             "ui_source": "packaged",
-            "extra_trusted_origins": ["http://reachy.local:8765", "http://192.168.1.42:8765"],
+            "extra_trusted_origins": [f"http://{MDNS_HOST}:8765", "http://192.168.1.42:8765"],
             "pairing_announcer": calls["build_app"][0]["pairing_announcer"],
             "pairing_ready": calls["build_app"][0]["pairing_ready"],
             "health_monitor": True,  # the robot samples health (contract 0.6.0)
@@ -266,7 +267,7 @@ def test_default_serve_mints_the_token_first_and_admits_every_advertised_host(
     ]
     assert callable(calls["build_app"][0]["pairing_announcer"])
     assert calls["uvicorn"] == [{"host": "0.0.0.0", "port": 8765}]
-    assert server.handoff_url == f"http://reachy.local:8765/#token={TOKEN}"
+    assert server.handoff_url == f"http://{MDNS_HOST}:8765/#token={TOKEN}"
     server.stop()
 
 
@@ -287,9 +288,31 @@ def test_run_sets_the_signed_in_link_on_the_instance_without_logging_it(
 
 def test_advertised_hosts_default_to_mdns_plus_detected_ips() -> None:
     hosts = advertised_hosts(BootstrapConfig())
-    assert hosts[0] == MDNS_HOST
-    assert all(not host.startswith("127.") for host in hosts[1:])
+    assert hosts[0].endswith(".local")
+    assert MDNS_HOST in hosts and LEGACY_MDNS_HOST in hosts
+    assert all(not host.startswith("127.") for host in hosts)
     assert len(hosts) == len(set(hosts))
+
+
+def test_the_robots_own_mdns_name_is_admitted_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A real Reachy Mini answers to `reachy-mini.local` (its hostname), not `reachy.local`.
+    # The dashboard rewrites the ⚙️ link to the name it was opened with, so that name must
+    # pass the console's Host guard or the page 400s; it also leads the sign-in link.
+    import maxim_reachy_app.app as app_mod
+
+    monkeypatch.setattr(app_mod.socket, "gethostname", lambda: "reachy-mini")
+    monkeypatch.setattr(app_mod, "_local_ipv4_addresses", lambda: ["10.6.0.63"])
+    assert advertised_hosts(BootstrapConfig()) == (
+        "reachy-mini.local",
+        "reachy.local",
+        "10.6.0.63",
+    )
+    monkeypatch.setattr(app_mod.socket, "gethostname", lambda: "kitchen-robot.lan")
+    assert advertised_hosts(BootstrapConfig())[:3] == (
+        "kitchen-robot.local",
+        "reachy-mini.local",
+        "reachy.local",
+    )
 
 
 def test_dashboard_entry_point_carries_a_literal_the_daemon_regex_can_read() -> None:

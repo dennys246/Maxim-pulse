@@ -55,8 +55,26 @@ class _Server(Protocol):
     def stop(self) -> None: ...
 
 
-#: The name Pollen's wireless image advertises the robot under (mDNS/avahi).
-MDNS_HOST = "reachy.local"
+#: The name Pollen's wireless image advertises the robot under (mDNS/avahi): its
+#: hostname, ``reachy-mini``, plus ``.local`` — observed on a real robot (2026-10-24);
+#: ``reachy.local`` does not resolve. Used when the hostname can't be read.
+MDNS_HOST = "reachy-mini.local"
+#: An older name earlier docs used; still admitted, never relied on.
+LEGACY_MDNS_HOST = "reachy.local"
+
+
+def _local_mdns_names() -> list[str]:
+    """The ``<hostname>.local`` name avahi advertises this robot under, then the legacy one.
+
+    The robot's real name comes first: it's what ``device_console_handoff`` puts in the
+    sign-in link, and what the dashboard is usually opened with.
+    """
+    try:
+        short = socket.gethostname().split(".")[0].strip().lower()
+    except OSError:
+        short = ""
+    own = f"{short}.local" if short and short != "localhost" else MDNS_HOST
+    return list(dict.fromkeys([own, MDNS_HOST, LEGACY_MDNS_HOST]))
 
 
 def _local_ipv4_addresses() -> list[str]:
@@ -134,7 +152,7 @@ class _UvicornThread:
 
 
 def advertised_hosts(config: BootstrapConfig) -> tuple[str, ...]:
-    return config.advertised_hosts or (MDNS_HOST, *_local_ipv4_addresses())
+    return config.advertised_hosts or (*_local_mdns_names(), *_local_ipv4_addresses())
 
 
 def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
