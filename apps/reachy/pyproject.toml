@@ -15,7 +15,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "maxim-reachy-app"
-version = "0.3.0"
+version = "0.4.0"
 description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
 requires-python = ">=3.10"
 dependencies = []
@@ -35,16 +35,19 @@ maxim_reachy_app = "maxim_reachy_app.main:MaximReachyApp"
 
 [project.optional-dependencies]
 # console = maxim serve's FastAPI/uvicorn; reachy = the Pollen SDK pin.
-# >=1.2.1 is the first RELEASE with everything the device sign-in path needs:
-# console contract 0.5.0 (/api/pair/*, A9.1) plus make_pairing_announcer and
-# make_device_speak_sink, which this bootstrap wires. On 1.1.x the robot has no
-# usable sign-in path at all. Bump deliberately (CLAUDE.md § Versioning).
+# >=1.3.3 is the first RELEASE with everything this bootstrap wires: console
+# contract 0.6.0 (run history + health; build_app(health_monitor=)), the
+# VoiceProvisioner and build_app(pairing_ready=) whose readiness means the voice
+# has SPOKEN once (#1277, R1), the Piper 1.3 API fix, and a console extra that
+# serves /ws. Older releases reject the new build_app keywords at startup.
+# Verified by scripts/release-acceptance.sh 1.3.3. Bump deliberately
+# (CLAUDE.md § Versioning).
 # `tts` is not optional here: the pairing announcer synthesizes the spoken code
 # with piper-tts, which lives in pymaxim's `tts` extra, NOT `reachy` or
 # `console`. Without it the announcer fails (ImportError, logged by type only)
 # while the sign-in page tells the owner to listen — a silent dead end, since
 # the 202 deliberately does not reveal announcer health to tokenless callers.
-robot = ["pymaxim[console,reachy,tts]>=1.2.1,<2.0"]
+robot = ["pymaxim[console,reachy,tts]>=1.3.3,<2.0"]
 dev = ["pytest", "ruff"]
 
 [tool.ruff]

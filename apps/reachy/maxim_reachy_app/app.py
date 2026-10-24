@@ -110,9 +110,12 @@ class _UvicornThread:
     #: The sign-in URL (carries the token in its FRAGMENT) — A7: never log it.
     handoff_url: str | None = None
 
-    def __init__(self, app: Any, host: str, port: int) -> None:
+    def __init__(
+        self, app: Any, host: str, port: int, *, on_stop: Callable[[], None] | None = None
+    ) -> None:
         import uvicorn
 
+        self._on_stop = on_stop
         self._server = uvicorn.Server(
             uvicorn.Config(app, host=host, port=port, log_level="warning")
         )
@@ -122,8 +125,12 @@ class _UvicornThread:
         self._thread.start()
 
     def stop(self) -> None:
-        self._server.should_exit = True
-        self._thread.join(timeout=10)
+        try:
+            self._server.should_exit = True
+            self._thread.join(timeout=10)
+        finally:
+            if self._on_stop is not None:
+                self._on_stop()
 
 
 def advertised_hosts(config: BootstrapConfig) -> tuple[str, ...]:
@@ -137,7 +144,7 @@ def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
             build_app,
             device_console_handoff,
         )
-        from maxim.models.audio.tts import TTSEngine  # type: ignore[import-not-found]
+        from maxim.models.audio.tts import VoiceProvisioner  # type: ignore[import-not-found]
         from maxim.utils.audio import make_device_speak_sink  # type: ignore[import-not-found]
     except ImportError as error:
         raise MaximNotInstalledError() from error
@@ -150,21 +157,32 @@ def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
     #    sandbox × extra_trusted_origins combination at build time (auth off).
     origins = [handoff.origin, *(f"http://{host}:{config.port}" for host in hosts[1:])]
     # 3. The device sign-in path (A9.1): the robot SPEAKS a one-use code when
-    #    the sign-in page asks. Pure wiring of pymaxim's pieces — the TTS
-    #    engine, the device sink (which owns the int16 → float32 conversion
-    #    the SDK needs) and the factory that composes them. All three are
-    #    inert until a code is requested: no model load, no audio device.
-    #    Built here, before setup, because pairing is needed exactly when no
-    #    agent exists yet — the owner signs in to RUN the setup wizard.
-    announcer = make_pairing_announcer(TTSEngine(), make_device_speak_sink(reachy_mini))
+    #    the sign-in page asks. Pure wiring of pymaxim's pieces — the voice
+    #    provisioner (downloads + verifies + loads the Piper voice in the
+    #    background, retrying), the device sink (which owns the int16 → float32
+    #    conversion the SDK needs) and the factory that composes them. Built
+    #    here, before setup, because pairing is needed exactly when no agent
+    #    exists yet — the owner signs in to RUN the setup wizard.
+    #    `pairing_ready` is read per request: until the voice has spoken audible
+    #    audio once (a robot that booted before Wi-Fi, or a voice that loads but
+    #    cannot synthesize), the page offers only the paste path, and the by-ear
+    #    path appears later with no restart — never "listen" to silence.
+    voice = VoiceProvisioner()
+    announcer = make_pairing_announcer(voice.engine, make_device_speak_sink(reachy_mini))
     ui_dist = config.ui_dist if config.ui_dist.is_dir() else None
     app = build_app(
         ui_dist,
         ui_source="packaged",
         extra_trusted_origins=origins,
         pairing_announcer=announcer,
+        pairing_ready=voice.is_ready,
+        # 4. Sample host health for the Logs → Health tab and the health strip
+        #    (contract 0.6.0) — `maxim serve` does this by default; build_app
+        #    does not.
+        health_monitor=True,
     )
-    server = _UvicornThread(app, config.host, config.port)
+    server = _UvicornThread(app, config.host, config.port, on_stop=voice.stop)
+    voice.start()  # only once the app exists: a failed build leaves no thread behind
     server.handoff_url = handoff.url
     return server
 
