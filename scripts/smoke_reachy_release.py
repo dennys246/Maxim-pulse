@@ -79,10 +79,17 @@ class _RecordingMedia:
 
 
 class FakeReachyMini:
-    """The ONE fake: a robot whose speaker records instead of playing."""
+    """The ONE fake: a robot whose speaker records instead of playing.
+
+    Its head wobbler starts ON, as the daemon can enable it on its own side
+    (reachy_mini daemon/backend/abstract.py), so the app must turn it off."""
 
     def __init__(self) -> None:
         self.media = _RecordingMedia()
+        self.wobbling = True
+
+    def disable_wobbling(self) -> None:
+        self.wobbling = False
 
 
 class _Announcer(logging.Handler):
@@ -290,6 +297,7 @@ def main() -> int:
                     raise
                 time.sleep(0.2)
         check(robot.media.playing, "the app starts the robot's audio player")
+        check(not robot.wobbling, "speech never moves the head (wobbling disabled)")
         # 2. never offer "listen" before the voice can speak; offer it once it can.
         #    The home is fresh, so no voice exists yet at the first request: a
         #    bootstrap that already says "available" is promising a silent robot.

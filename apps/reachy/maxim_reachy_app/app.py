@@ -277,6 +277,13 @@ class MaximReachyApp(ReachyMiniApp):
         media = getattr(reachy_mini, "media", None)
         if media is not None:
             media.start_playing()
+        # Speech never moves the head (pymaxim embodied_device.md §3, owner decision
+        # 2026-10-24): the SDK's audio-reactive wobbler can be on daemon-side, and
+        # disable_wobbling() turns it off on both the SDK and the daemon side. All
+        # motion stays on goto_target. pymaxim's embody() takes this over later.
+        disable = getattr(reachy_mini, "disable_wobbling", None)
+        if disable is not None:
+            disable()
         try:
             self._serve_until_stopped(reachy_mini, stop_event)
         finally:

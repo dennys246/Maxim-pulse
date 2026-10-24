@@ -503,6 +503,9 @@ def test_run_starts_the_robots_player_before_serving_and_stops_it_last() -> None
     class Robot:
         media = Media()
 
+        def disable_wobbling(self) -> None:
+            order.append("disable_wobbling")
+
     class OrderedServer(FakeServer):
         def stop(self) -> None:
             order.append("server.stop")
@@ -521,4 +524,4 @@ def test_run_starts_the_robots_player_before_serving_and_stops_it_last() -> None
     stop = threading.Event()
     stop.set()
     app.run(Robot(), stop)
-    assert order == ["start_playing", "serve", "server.stop", "stop_playing"]
+    assert order == ["start_playing", "disable_wobbling", "serve", "server.stop", "stop_playing"]
