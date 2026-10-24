@@ -55,8 +55,26 @@ class _Server(Protocol):
     def stop(self) -> None: ...
 
 
-#: The name Pollen's wireless image advertises the robot under (mDNS/avahi).
-MDNS_HOST = "reachy.local"
+#: The name Pollen's wireless image advertises the robot under (mDNS/avahi): its
+#: hostname, ``reachy-mini``, plus ``.local`` — observed on a real robot (2026-10-24);
+#: ``reachy.local`` does not resolve. Used when the hostname can't be read.
+MDNS_HOST = "reachy-mini.local"
+#: An older name earlier docs used; still admitted, never relied on.
+LEGACY_MDNS_HOST = "reachy.local"
+
+
+def _local_mdns_names() -> list[str]:
+    """The ``<hostname>.local`` name avahi advertises this robot under, then the legacy one.
+
+    The robot's real name comes first: it's what ``device_console_handoff`` puts in the
+    sign-in link, and what the dashboard is usually opened with.
+    """
+    try:
+        short = socket.gethostname().split(".")[0].strip().lower()
+    except OSError:
+        short = ""
+    own = f"{short}.local" if short and short != "localhost" else MDNS_HOST
+    return list(dict.fromkeys([own, MDNS_HOST, LEGACY_MDNS_HOST]))
 
 
 def _local_ipv4_addresses() -> list[str]:
@@ -134,7 +152,7 @@ class _UvicornThread:
 
 
 def advertised_hosts(config: BootstrapConfig) -> tuple[str, ...]:
-    return config.advertised_hosts or (MDNS_HOST, *_local_ipv4_addresses())
+    return config.advertised_hosts or (*_local_mdns_names(), *_local_ipv4_addresses())
 
 
 def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
@@ -196,9 +214,15 @@ def _default_build_handle(config: BootstrapConfig) -> Any:
 
 
 def _default_placement_resolvable() -> bool:
-    # Rides the existing config facade. Candidate pymaxim helper (flagged):
-    # a single `placement_resolvable()` next to the SETUP seam would let this
-    # app not know the config vocabulary at all.
+    """Is an LLM configured for the agent? Only fields pymaxim's config schema defines.
+
+    The SETUP seam writes a mesh leader as ``lanes.large.remote_url`` and a cloud key as
+    ``cloud.*``; a local model is ``llm.profile``. (``lanes.large.placement`` was never a
+    schema field: asking for it raises ConfigurationError, which took the app down on a
+    real robot, 2026-10-24.) Candidate pymaxim helper (flagged): one
+    ``placement_resolvable()`` next to the SETUP seam would spare this app the config
+    vocabulary entirely.
+    """
     try:
         from maxim.runtime.config_loader import resolve_setting  # type: ignore[import-not-found]
     except ImportError as error:
@@ -208,10 +232,13 @@ def _default_placement_resolvable() -> bool:
         result = resolve_setting(path)
         return result[0] if isinstance(result, tuple) else result
 
-    if bool(value("cloud.enabled")):
-        return True
-    placement = value("lanes.large.placement")
-    return placement is not None and str(placement) != ""
+    if not value("llm.enabled"):
+        return False
+    return (
+        bool(value("cloud.enabled"))
+        or bool(value("lanes.large.remote_url"))
+        or bool(value("llm.profile"))
+    )
 
 
 class MaximReachyApp(ReachyMiniApp):
@@ -232,12 +259,38 @@ class MaximReachyApp(ReachyMiniApp):
         build_handle: Callable[[BootstrapConfig], Any] = _default_build_handle,
         placement_resolvable: Callable[[], bool] = _default_placement_resolvable,
     ) -> None:
+        # The SDK base sets up what wrapped_run() needs (stop_event, settings_app,
+        # media_backend, the daemon-on-localhost probe); skipping it made the app
+        # die on launch under the daemon. (The test stand-in base is plain object.)
+        super().__init__()
         self.config = config or BootstrapConfig()
         self._serve = serve
         self._build_handle = build_handle
         self._placement_resolvable = placement_resolvable
 
     def run(self, reachy_mini: Any, stop_event: threading.Event) -> None:
+        # Pollen's player must be started before any audio is pushed: before
+        # start_playing(), push_audio_sample() logs "AppSrc is not initialized"
+        # and DROPS the samples without raising, so the spoken pairing code was
+        # silent on a real robot (2026-10-24). Every SDK app does this; it's
+        # device glue, so it lives here. Stopped last, after the server.
+        media = getattr(reachy_mini, "media", None)
+        if media is not None:
+            media.start_playing()
+        # Speech never moves the head (pymaxim embodied_device.md §3, owner decision
+        # 2026-10-24): the SDK's audio-reactive wobbler can be on daemon-side, and
+        # disable_wobbling() turns it off on both the SDK and the daemon side. All
+        # motion stays on goto_target. pymaxim's embody() takes this over later.
+        disable = getattr(reachy_mini, "disable_wobbling", None)
+        if disable is not None:
+            disable()
+        try:
+            self._serve_until_stopped(reachy_mini, stop_event)
+        finally:
+            if media is not None:
+                media.stop_playing()
+
+    def _serve_until_stopped(self, reachy_mini: Any, stop_event: threading.Event) -> None:
         # the SDK handle feeds the pairing announcer's speaker
         server = self._serve(self.config, reachy_mini)
         # Best effort for an SDK that reads the instance: the signed-in ⚙️

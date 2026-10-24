@@ -103,7 +103,8 @@ pnpm --filter @maxim/reachy-ui build
   no attempt). A plain `maxim serve` reports `"none"` and must show no pairing UI at all.
 - **Verify the Reachy handoff** (`apps/reachy`). The bootstrap calls pymaxim's
   `device_console_handoff` BEFORE `build_app(extra_trusted_origins=…)`; every host the page is
-  reached by (`reachy.local` + detected IPs) must be admitted or the console 400s fail-closed.
+  reached by (the robot's own `<hostname>.local` — `reachy-mini.local` on a real robot, not
+  `reachy.local` — plus detected IPs) must be admitted or the console 400s fail-closed.
   Pollen's daemon (reachy_mini 1.8.x) reads `custom_app_url` by regex over `maxim_reachy_app/main.py`
   at LISTING time — a literal, first match wins, never a runtime value — so the ⚙️ link lands on
   the sign-in screen; `tests/test_app.py` pins that regex against the file. Sign-in on-device is

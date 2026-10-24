@@ -13,7 +13,7 @@ reachy_mini 1.8.3, ``apps/sources/local_common_venv.py`` + the dashboard's
   this file's source). In the shared-venv case it
   imports the entry point and reads the CLASS attribute instead.
 * The dashboard rewrites the link's hostname to whatever the dashboard itself
-  was opened with (``reachy.local`` or a bare IP) and keeps port, path and
+  was opened with (``reachy-mini.local`` or a bare IP) and keeps port, path and
   fragment. That is why ``app.py`` admits every such host to the console's
   Host/Origin guard.
 
@@ -37,3 +37,17 @@ class MaximReachyApp(_Bootstrap):
     # (the dashboard substitutes its own); the port matches BootstrapConfig.
     custom_app_url: str | None = "http://0.0.0.0:8765/"
     dont_start_webserver: bool = True
+
+
+# How Pollen's daemon starts an app: ``python -u -m maxim_reachy_app.main`` in the
+# apps_venv (reachy_mini.apps.manager.start_app), so this block IS the app's entry.
+# It is the SDK's own template (reachy_mini/apps/templates/main.py.j2). Without it
+# the module imports, exits 0 and the dashboard shows the app "done" at once.
+# The daemon stops an app with SIGINT: KeyboardInterrupt unwinds run()'s finally
+# (the full session-end consolidation), then stop() releases the stop event.
+if __name__ == "__main__":
+    app = MaximReachyApp()
+    try:
+        app.wrapped_run()
+    except KeyboardInterrupt:
+        app.stop()
