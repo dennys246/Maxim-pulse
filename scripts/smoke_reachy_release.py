@@ -54,11 +54,26 @@ def check(ok: bool, label: str, detail: str = "") -> bool:
 
 
 class _RecordingMedia:
+    """The robot's player, faithful to reachy_mini's contract: audio pushed before
+    start_playing() is DROPPED with only a warning (no exception), exactly as the real
+    SDK does. A fake that accepted it hid a silent pairing code on a real robot."""
+
     def __init__(self) -> None:
         self.samples: list = []
+        self.dropped = 0
+        self.playing = False
         self.event = threading.Event()
 
+    def start_playing(self) -> None:
+        self.playing = True
+
+    def stop_playing(self) -> None:
+        self.playing = False
+
     def push_audio_sample(self, samples) -> None:  # the SDK call the device sink makes
+        if not self.playing:
+            self.dropped += 1  # reachy_mini: "AppSrc is not initialized. Call start_playing() first."
+            return
         self.samples.append(samples)
         self.event.set()
 
@@ -109,6 +124,78 @@ def _post_status(base: str, path: str) -> int:
         return error.code
 
 
+def _check_the_daemons_launch_path(bootstrap_config: type) -> None:
+    """Run the app the way Pollen's daemon does, through the SDK's own wrapped_run().
+
+    The daemon starts ``python -u -m maxim_reachy_app.main`` and stops it with SIGINT;
+    the module's __main__ block builds the app and calls the SDK base's wrapped_run(),
+    which needs the base __init__ to have run. Calling our run() directly (as the checks
+    above do) skips all of that, which is how a missing __main__ block and a skipped
+    super().__init__() both shipped past every test (found on a real robot, 2026-10-24).
+    Only ReachyMini (the hardware handle) is faked here.
+    """
+    import ast
+    import inspect
+
+    import maxim_reachy_app.main as entry
+    import reachy_mini.apps.app as sdk_app
+
+    tree = ast.parse(inspect.getsource(entry))
+    launcher = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.If) and "__main__" in ast.unparse(n.test)
+    ]
+    check(
+        len(launcher) == 1 and ".wrapped_run()" in ast.unparse(launcher[0]),
+        "main.py launches the app the way the daemon runs it (python -m … → wrapped_run)",
+    )
+
+    class _FakeHandle:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> FakeReachyMini:
+            return FakeReachyMini()
+
+        def __exit__(self, *exc) -> None:
+            return None
+
+    sdk_app.ReachyMini = _FakeHandle  # the one fake: no hardware
+    port = _free_port()
+    app = entry.MaximReachyApp()
+    app.config = bootstrap_config(
+        host="127.0.0.1",
+        port=port,
+        advertised_hosts=("127.0.0.1",),
+        ui_dist=app.config.ui_dist,
+    )
+    runner = threading.Thread(target=app.wrapped_run, name="wrapped-run", daemon=True)
+    runner.start()
+    base = f"http://127.0.0.1:{port}"
+    up = False
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and runner.is_alive():
+        try:
+            _get(base, "/api/hello")
+            up = True
+            break
+        except OSError:
+            time.sleep(0.3)
+    check(
+        up,
+        "through wrapped_run, the console comes up",
+        app.error.splitlines()[-1] if app.error else "",
+    )
+    app.stop()  # what the daemon's SIGINT ends in
+    runner.join(30)
+    check(
+        not runner.is_alive(),
+        "the daemon's stop ends the app",
+        app.error.splitlines()[-1] if app.error else "",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -144,7 +231,7 @@ def main() -> int:
     from importlib.metadata import version
 
     from maxim.console.ui_bundle import CONSOLE_CONTRACT_VERSION
-    from maxim_reachy_app.app import BootstrapConfig, ReachyMiniApp, _default_serve
+    from maxim_reachy_app.app import BootstrapConfig, MaximReachyApp, ReachyMiniApp
 
     print(
         f"pymaxim {version('pymaxim')} (console contract {CONSOLE_CONTRACT_VERSION})",
@@ -186,7 +273,12 @@ def main() -> int:
         advertised_hosts=("127.0.0.1",),
         ui_dist=ui_dist,
     )
-    server = _default_serve(config, robot)
+    # Through the app's own run(): starting the robot's player (and everything
+    # else run() owns) is the app's job, never this harness's.
+    app = MaximReachyApp(config)
+    stop_event = threading.Event()
+    runner = threading.Thread(target=app.run, args=(robot, stop_event), daemon=True)
+    runner.start()
     try:
         deadline = time.monotonic() + 15
         while True:
@@ -194,9 +286,10 @@ def main() -> int:
                 first = _get(base, "/api/hello")["pairing"]
                 break
             except OSError:
-                if time.monotonic() > deadline:
+                if time.monotonic() > deadline or not runner.is_alive():
                     raise
                 time.sleep(0.2)
+        check(robot.media.playing, "the app starts the robot's audio player")
         # 2. never offer "listen" before the voice can speak; offer it once it can.
         #    The home is fresh, so no voice exists yet at the first request: a
         #    bootstrap that already says "available" is promising a silent robot.
@@ -217,7 +310,7 @@ def main() -> int:
         )
 
         # 3. the robot samples its own health
-        token = (getattr(server, "handoff_url", None) or "").partition("#token=")[2]
+        token = (app.custom_app_url or "").partition("#token=")[2]
         try:  # a pre-0.6.0 server has no /api/health: that is a FAIL, not a crash
             health, health_detail = _get(base, "/api/health", token), ""
         except urllib.error.HTTPError as error:
@@ -236,7 +329,7 @@ def main() -> int:
             check(
                 False,
                 "the robot's speaker receives the spoken code",
-                "no audio was pushed",
+                f"no audio reached the player ({robot.media.dropped} push(es) dropped: player not started)",
             )
         else:
             import numpy as np
@@ -255,12 +348,17 @@ def main() -> int:
     finally:
         # 5. a clean stop (the dashboard stop is the session boundary)
         t = time.monotonic()
-        server.stop()
+        stop_event.set()
+        runner.join(30)
+        check(not robot.media.playing, "the app stops the robot's audio player on exit")
         check(
             time.monotonic() - t < 15,
             "the server stops promptly",
             f"{time.monotonic() - t:.1f}s",
         )
+
+    if args.installed:
+        _check_the_daemons_launch_path(BootstrapConfig)
 
     for line in announcer_log.lines:
         print(f"      pymaxim warned: {line}", flush=True)

@@ -408,3 +408,117 @@ def test_a_refused_build_leaves_no_provisioner_thread_behind(
         )
     assert calls["voice"] == ["init"]  # constructed, never started
     assert calls["uvicorn"] == []
+
+
+def test_main_is_launchable_the_way_the_daemon_launches_it() -> None:
+    # Pollen's daemon runs `python -u -m <entry module>` (reachy_mini.apps.manager.
+    # start_app). Without the SDK template's __main__ block the module just imports
+    # and exits 0, and the dashboard shows the app "done" with nothing served.
+    import ast
+
+    from maxim_reachy_app import main
+
+    tree = ast.parse(Path(main.__file__).read_text(encoding="utf-8"))
+    launchers = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.If) and "__main__" in ast.unparse(node.test)
+    ]
+    assert len(launchers) == 1
+    body = ast.unparse(launchers[0])
+    assert "MaximReachyApp()" in body
+    assert ".wrapped_run()" in body
+    assert "KeyboardInterrupt" in body and ".stop()" in body
+
+
+def test_init_runs_the_sdk_base_init() -> None:
+    # wrapped_run() reads attributes the SDK base __init__ sets (stop_event,
+    # settings_app, media_backend); our __init__ must call it.
+    class RecordingBase:
+        inits = 0
+
+        def __init__(self) -> None:
+            RecordingBase.inits += 1
+
+    import maxim_reachy_app.app as app_mod
+
+    class Probe(app_mod.MaximReachyApp, RecordingBase):
+        pass
+
+    Probe()
+    assert RecordingBase.inits == 1
+
+
+#: The config paths pymaxim 1.3.3's schema defines that the bootstrap may read
+#: (resolve_setting raises ConfigurationError for any other path).
+_SCHEMA_PATHS = {"cloud.enabled", "lanes.large.remote_url", "llm.profile", "llm.enabled"}
+
+
+def _fake_resolve_setting(values: dict) -> types.ModuleType:
+    def resolve_setting(path: str):
+        if path not in _SCHEMA_PATHS:
+            raise ValueError(f"config: unknown field path {path!r}")
+        return (values.get(path), "test")
+
+    mod = types.ModuleType("maxim.runtime.config_loader")
+    mod.resolve_setting = resolve_setting  # type: ignore[attr-defined]
+    return mod
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        ({"llm.enabled": True}, False),
+        ({"llm.enabled": True, "lanes.large.remote_url": "http://10.6.0.33:8099/v1"}, True),
+        ({"llm.enabled": True, "cloud.enabled": True}, True),
+        ({"llm.enabled": True, "llm.profile": "qwen2.5-14b"}, True),
+        ({"llm.enabled": False, "lanes.large.remote_url": "http://10.6.0.33:8099/v1"}, False),
+    ],
+)
+def test_placement_resolvable_reads_only_schema_fields(
+    monkeypatch: pytest.MonkeyPatch, values: dict, expected: bool
+) -> None:
+    # A path outside pymaxim's schema raises in the real resolve_setting; the old
+    # `lanes.large.placement` read crashed the app on a real robot.
+    from maxim_reachy_app.app import _default_placement_resolvable
+
+    for name in ("maxim", "maxim.runtime"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, "maxim.runtime.config_loader", _fake_resolve_setting(values))
+    assert _default_placement_resolvable() is expected
+
+
+def test_run_starts_the_robots_player_before_serving_and_stops_it_last() -> None:
+    # Before start_playing(), the SDK drops pushed audio with only a warning: the
+    # pairing code was silent on a real robot. Start first, stop after the server.
+    order: list[str] = []
+
+    class Media:
+        def start_playing(self) -> None:
+            order.append("start_playing")
+
+        def stop_playing(self) -> None:
+            order.append("stop_playing")
+
+    class Robot:
+        media = Media()
+
+    class OrderedServer(FakeServer):
+        def stop(self) -> None:
+            order.append("server.stop")
+            super().stop()
+
+    def serve(config, mini):
+        order.append("serve")
+        return OrderedServer()
+
+    app = MaximReachyApp(
+        BootstrapConfig(),
+        serve=serve,
+        build_handle=lambda config: FakeHandle(),
+        placement_resolvable=lambda: False,
+    )
+    stop = threading.Event()
+    stop.set()
+    app.run(Robot(), stop)
+    assert order == ["start_playing", "serve", "server.stop", "stop_playing"]
