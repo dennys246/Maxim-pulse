@@ -435,8 +435,10 @@ into `reachy` with the same tool, so what the owner told the robot isn't lost.
   - the `__main__` launcher;
   - the base `__init__`;
   - schema-only config reads;
-  - the bootstrap as #1435's **interim lifecycle owner** for bare-SDK embedders: `start_playing()` and
-    `disable_wobbling()` once at start, `stop_playing()` last.
+  - the bootstrap as #1435's **interim lifecycle owner** for bare-SDK embedders. With pymaxim ≥ 1.3.4 it calls
+    `start_device_player()` at start and `stop_device_player()` last (pymaxim's sink trusts only a start it recorded
+    itself). On 1.3.3 it falls back to the SDK in the same order: `disable_wobbling()` **first**, then
+    `start_playing()`, with `stop_playing()` last.
 
   Proven by the daemon-launch smoke on linux/arm64 against 1.3.3.
 - **Release notes say plainly** that voice conversation and the embodied agent come with pymaxim's device work.
@@ -449,7 +451,7 @@ into `reachy` with the same tool, so what the owner told the robot isn't lost.
 | 1. One agent (handle on `app.state`, `talk(source=)`) | nothing to wire. The robot's typed chat moves to the `reachy` agent; pulse re-verifies on the robot with `robot-check.sh` |
 | 2. The bounded stop (#1438 / #1344) | the daemon-faithful harness asserts SIGINT-to-exit within the SDK's budget (read from the SDK) |
 | 3. `Pcm`, the reshaped `AudioStream`, `Voice` | pairing UI unchanged. `pairing_ready` now means *played*: on a device that can't play, the sign-in shows paste only. Pulse's smoke asserts on what's **heard** (SDK-faithful fake) |
-| 4. `adopt` + `embody` (+ the embodied census) | the bootstrap drops its interim `start_playing`/`disable_wobbling` once `embody()` owns them; a test pins that there's exactly one owner |
+| 4. `adopt` + `embody` (+ the embodied census) | the bootstrap drops its interim `start_device_player`/`stop_device_player` (and the 1.3.3 fallback) once `embody()` owns them; a test pins that there's exactly one owner |
 | 5. Listening (wake word, STT on the leader, half-duplex) | a status chip ("Listening · say 'Maxim'" / "Listening · on the leader" / reason + fix) and a mute toggle, once the status seam exists |
 | 6. `run_device` (`console/device.py`) | the robot app shrinks to SDK glue (~35 lines, §3), and `app.py` is deleted |
 | 7. The status seam (0.7.0 if still unreleased) | regenerate from the merged `openapi.json`; device-status chips. **Plan the 0.7.0 tag with pymaxim up front:** pulse tags first, pymaxim vendors, then releases |

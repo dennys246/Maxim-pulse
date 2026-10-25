@@ -58,13 +58,28 @@ class _RecordingMedia:
     start_playing() is DROPPED with only a warning (no exception), exactly as the real
     SDK does. A fake that accepted it hid a silent pairing code on a real robot."""
 
-    def __init__(self) -> None:
+    #: What pymaxim's sink checks on the real MediaManager (#1435): the backend (it refuses
+    #: an unknown one), an initialized audio system, and the device output rate.
+    backend = "local"
+    SAMPLE_RATE = 16000
+
+    def __init__(self, robot: FakeReachyMini | None = None) -> None:
         self.samples: list = []
         self.dropped = 0
         self.playing = False
         self.event = threading.Event()
+        self.audio = object()  # non-None: the SDK's audio system is initialized
+        self._robot = robot
+        self.wobbling_at_start: bool | None = None
+
+    def get_output_audio_samplerate(self) -> int:
+        return self.SAMPLE_RATE
 
     def start_playing(self) -> None:
+        if self._robot is not None:
+            self.wobbling_at_start = (
+                self._robot.wobbling
+            )  # was the head still free to move?
         self.playing = True
 
     def stop_playing(self) -> None:
@@ -85,8 +100,8 @@ class FakeReachyMini:
     (reachy_mini daemon/backend/abstract.py), so the app must turn it off."""
 
     def __init__(self) -> None:
-        self.media = _RecordingMedia()
         self.wobbling = True
+        self.media = _RecordingMedia(self)
 
     def disable_wobbling(self) -> None:
         self.wobbling = False
@@ -298,6 +313,11 @@ def main() -> int:
                 time.sleep(0.2)
         check(robot.media.playing, "the app starts the robot's audio player")
         check(not robot.wobbling, "speech never moves the head (wobbling disabled)")
+        check(
+            robot.media.wobbling_at_start is False,
+            "the wobbler is off BEFORE the player starts",
+            f"wobbling when start_playing() ran: {robot.media.wobbling_at_start}",
+        )
         # 2. never offer "listen" before the voice can speak; offer it once it can.
         #    The home is fresh, so no voice exists yet at the first request: a
         #    bootstrap that already says "available" is promising a silent robot.
