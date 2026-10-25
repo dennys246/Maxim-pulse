@@ -16,6 +16,7 @@ import sys
 import threading
 import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -199,14 +200,14 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
             calls["voice"].append("stop")
 
     def make_device_speak_sink(mini):
-        def speak(samples, sample_rate=16000):
+        def speak(samples, *, sample_rate):  # the real sink: keyword-only, required (pymaxim #1435)
             calls["spoken"].append({"mini": mini, "samples": samples})
             return True
 
         return speak
 
     def make_pairing_announcer(tts, speak):
-        return lambda code: speak(tts.synthesize(f"code {code}"))
+        return lambda code: speak(tts.synthesize(f"code {code}"), sample_rate=22050)
 
     server_mod = types.ModuleType("maxim.console.server")
     server_mod.build_app = build_app  # type: ignore[attr-defined]
@@ -488,11 +489,7 @@ def test_placement_resolvable_reads_only_schema_fields(
     assert _default_placement_resolvable() is expected
 
 
-def test_run_starts_the_robots_player_before_serving_and_stops_it_last() -> None:
-    # Before start_playing(), the SDK drops pushed audio with only a warning: the
-    # pairing code was silent on a real robot. Start first, stop after the server.
-    order: list[str] = []
-
+def _ordered_robot_and_app(order: list[str]) -> tuple[Any, MaximReachyApp]:
     class Media:
         def start_playing(self) -> None:
             order.append("start_playing")
@@ -521,7 +518,44 @@ def test_run_starts_the_robots_player_before_serving_and_stops_it_last() -> None
         build_handle=lambda config: FakeHandle(),
         placement_resolvable=lambda: False,
     )
+    return Robot(), app
+
+
+def _stub_pymaxim_audio(monkeypatch: pytest.MonkeyPatch, **functions: Any) -> None:
+    for name in ("maxim", "maxim.utils"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    audio = types.ModuleType("maxim.utils.audio")
+    for name, fn in functions.items():
+        setattr(audio, name, fn)
+    monkeypatch.setitem(sys.modules, "maxim.utils.audio", audio)
+
+
+def test_on_pymaxim_1_3_3_the_wobbler_goes_off_before_the_player_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The fallback (no start_device_player): before start_playing() the SDK drops audio
+    # with only a warning, and start_playing() would start an existing wobbler, so the
+    # wobbler goes off FIRST. The player stops last, after the server.
+    _stub_pymaxim_audio(monkeypatch)  # 1.3.3's maxim.utils.audio: no player functions
+    order: list[str] = []
+    robot, app = _ordered_robot_and_app(order)
     stop = threading.Event()
     stop.set()
-    app.run(Robot(), stop)
-    assert order == ["start_playing", "disable_wobbling", "serve", "server.stop", "stop_playing"]
+    app.run(robot, stop)
+    assert order == ["disable_wobbling", "start_playing", "serve", "server.stop", "stop_playing"]
+
+
+def test_on_pymaxim_1_3_4_the_player_lifecycle_is_pymaxims(monkeypatch: pytest.MonkeyPatch) -> None:
+    # pymaxim's sink trusts only a start it recorded itself (#1435), so with 1.3.4 the
+    # bootstrap must go through start/stop_device_player and never touch the SDK player.
+    order: list[str] = []
+    _stub_pymaxim_audio(
+        monkeypatch,
+        start_device_player=lambda mini: order.append("start_device_player") or True,
+        stop_device_player=lambda mini: order.append("stop_device_player"),
+    )
+    robot, app = _ordered_robot_and_app(order)
+    stop = threading.Event()
+    stop.set()
+    app.run(robot, stop)
+    assert order == ["start_device_player", "serve", "server.stop", "stop_device_player"]

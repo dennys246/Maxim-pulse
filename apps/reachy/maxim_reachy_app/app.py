@@ -241,6 +241,37 @@ def _default_placement_resolvable() -> bool:
     )
 
 
+def _device_player() -> tuple[Callable[[Any], Any] | None, Callable[[Any], Any] | None]:
+    """pymaxim's speaker lifecycle (``start_device_player``/``stop_device_player``, 1.3.4+).
+
+    (None, None) on pymaxim 1.3.3, or with no pymaxim at all, so the caller falls back
+    to the SDK calls.
+    """
+    try:
+        from maxim.utils.audio import (  # type: ignore[import-not-found]
+            start_device_player,
+            stop_device_player,
+        )
+    except ImportError:
+        return None, None
+    return start_device_player, stop_device_player
+
+
+def _start_sdk_player(reachy_mini: Any) -> None:
+    """The pymaxim 1.3.3 fallback, in pymaxim's order: wobbler off, THEN start the player.
+
+    ``start_playing()`` would start an existing SDK wobbler; turning it off first means
+    speech can never move the head. ``disable_wobbling()`` turns off both the SDK and
+    the daemon-side wobbler.
+    """
+    disable = getattr(reachy_mini, "disable_wobbling", None)
+    if disable is not None:
+        disable()
+    media = getattr(reachy_mini, "media", None)
+    if media is not None:
+        media.start_playing()
+
+
 class MaximReachyApp(ReachyMiniApp):
     """One persistent embodied agent per app run; UI + facade served alongside.
 
@@ -269,26 +300,27 @@ class MaximReachyApp(ReachyMiniApp):
         self._placement_resolvable = placement_resolvable
 
     def run(self, reachy_mini: Any, stop_event: threading.Event) -> None:
-        # Pollen's player must be started before any audio is pushed: before
-        # start_playing(), push_audio_sample() logs "AppSrc is not initialized"
-        # and DROPS the samples without raising, so the spoken pairing code was
-        # silent on a real robot (2026-10-24). Every SDK app does this; it's
-        # device glue, so it lives here. Stopped last, after the server.
-        media = getattr(reachy_mini, "media", None)
-        if media is not None:
-            media.start_playing()
-        # Speech never moves the head (pymaxim embodied_device.md §3, owner decision
-        # 2026-10-24): the SDK's audio-reactive wobbler can be on daemon-side, and
-        # disable_wobbling() turns it off on both the SDK and the daemon side. All
-        # motion stays on goto_target. pymaxim's embody() takes this over later.
-        disable = getattr(reachy_mini, "disable_wobbling", None)
-        if disable is not None:
-            disable()
+        # The robot's speaker player must be started before any audio is pushed, and
+        # the head wobbler turned off FIRST, so speech never moves the head, not even
+        # for a moment (pymaxim #1435, embodied_device.md §3). Stopped last, after
+        # the server. This bootstrap is the interim lifecycle owner until pymaxim's
+        # embody() takes it over.
+        start_player, stop_player = _device_player()
+        if start_player is not None:
+            # pymaxim >= 1.3.4: its sink trusts only a start it recorded itself.
+            # A False return is logged by pymaxim; the paste sign-in still works.
+            start_player(reachy_mini)
+        else:
+            _start_sdk_player(reachy_mini)  # pymaxim 1.3.3
         try:
             self._serve_until_stopped(reachy_mini, stop_event)
         finally:
-            if media is not None:
-                media.stop_playing()
+            if stop_player is not None:
+                stop_player(reachy_mini)
+            else:
+                media = getattr(reachy_mini, "media", None)
+                if media is not None:
+                    media.stop_playing()
 
     def _serve_until_stopped(self, reachy_mini: Any, stop_event: threading.Event) -> None:
         # the SDK handle feeds the pairing announcer's speaker
