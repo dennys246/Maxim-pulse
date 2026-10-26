@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FacadeProvider, MockFacade, wireEvent } from '../facade'
 import { EventClientProvider, useEvents } from '../facade/eventClient'
+import { IdentityProvider } from '../facade/identity'
 import type { ConsoleEvent } from '../facade/types'
 import { PanelProvider, PanelRail, type PanelSpec } from './PanelDock'
 
@@ -186,4 +187,50 @@ test('EventHub replays buffered events to late subscribers', () => {
     </FacadeProvider>,
   )
   expect(screen.getByTestId('replayed')).toHaveTextContent('1')
+})
+
+test('a panel that requires a seam the backend lacks EXPLAINS itself; a live seam renders it', async () => {
+  const gated: PanelSpec[] = [
+    {
+      id: 'body',
+      title: 'Body',
+      icon: '🫀',
+      side: 'left',
+      requires: ['body'],
+      missing: 'The body view needs a newer Maxim.',
+      render: () => <p>body tree</p>,
+    },
+  ]
+  const mount = (facade: MockFacade) =>
+    render(
+      <FacadeProvider facade={facade}>
+        <IdentityProvider>
+          <EventClientProvider>
+            <PanelProvider panels={gated} storage={memoryStorage()}>
+              <PanelRail side="left" />
+            </PanelProvider>
+          </EventClientProvider>
+        </IdentityProvider>
+      </FacadeProvider>,
+    )
+
+  const older = new MockFacade()
+  older.backend = {
+    ...older.backend,
+    seams: (older.backend.seams ?? []).filter((s) => s.name !== 'body'),
+  }
+  const first = mount(older)
+  await userEvent.click(screen.getByLabelText('Open Body'))
+  expect(await screen.findByRole('status')).toHaveTextContent('needs a newer Maxim')
+  expect(screen.queryByText('body tree')).not.toBeInTheDocument()
+  first.unmount()
+
+  const current = new MockFacade()
+  current.backend = {
+    ...current.backend,
+    seams: [...(current.backend.seams ?? []), { name: 'body', live: true }],
+  }
+  mount(current)
+  await userEvent.click(screen.getByLabelText('Open Body'))
+  expect(await screen.findByText('body tree')).toBeInTheDocument()
 })

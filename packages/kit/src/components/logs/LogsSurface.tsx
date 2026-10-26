@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Gated } from '../../shell/ConsoleApp'
+import { Gated } from '../../shell/gating'
 import { DegradedTab, HealthTab } from './HealthViews'
 import { RunsTab } from './RunsTab'
 
