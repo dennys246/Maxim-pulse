@@ -43,3 +43,23 @@ export { LogsSurface } from './components/logs/LogsSurface'
 export { HealthStrip, HealthTab, DegradedTab } from './components/logs/HealthViews'
 export { RunsTab } from './components/logs/RunsTab'
 export { CreditChip } from './components/logs/CreditChip'
+export {
+  BodyPanelView,
+  ComponentPicker,
+  EmbodimentChip,
+  PartNode,
+  SensationFeed,
+  SensorRow,
+  type BodyPanelViewProps,
+  type ComponentPickerProps,
+} from './components/body/BodyViews'
+export {
+  applyBodyChange,
+  type BodyChange,
+  type BodyView,
+  type ComponentOption,
+  type Embodiment,
+  type PartView,
+  type SensationView,
+  type SensorView,
+} from './components/body/model'

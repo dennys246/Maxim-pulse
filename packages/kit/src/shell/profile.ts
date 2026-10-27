@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
 import type { PanelSpec } from '../components/PanelDock'
 import type { SubscribeFrame } from '../facade/types'
+import type { SeamRequirement } from './gating'
+
+export type { SeamRequirement }
 
 /**
  * One console, many devices (docs/plans/log_explorer.md §7).
@@ -20,14 +23,6 @@ import type { SubscribeFrame } from '../facade/types'
  * `@maxim/kit/viz` and are lazy-loaded; `pnpm size:reachy` keeps guarding the
  * robot.
  */
-
-/** Backend seams a surface needs, checked strictly against `/api/identity`. */
-export interface SeamRequirement {
-  /** Every name must be declared live by the backend. */
-  requires?: string[]
-  /** What to tell the operator when a seam is missing (an older backend). */
-  missing?: string
-}
 
 /** A button in the top bar's utility cluster. */
 export interface TopBarAction extends SeamRequirement {

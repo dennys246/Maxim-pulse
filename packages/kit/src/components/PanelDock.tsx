@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ConsoleEvent } from '../facade/types'
 import { useEventClient } from '../facade/eventClient'
+import { Gated, type SeamRequirement } from '../shell/gating'
 
 /**
  * PanelDock — the first real implementation of Maxim's DisplayExtension
@@ -20,7 +21,7 @@ import { useEventClient } from '../facade/eventClient'
  * No drag/grid dependency by design: a library here would enter the lean kit
  * entry and thus the Reachy on-device bundle (AGENTS.md § code-split).
  */
-export interface PanelSpec {
+export interface PanelSpec extends SeamRequirement {
   id: string
   title: string
   /** Chip glyph (emoji/character) shown on the rail strip. */
@@ -29,6 +30,7 @@ export interface PanelSpec {
   side: 'left' | 'right'
   /** Event predicate for Maxim-driven activation. MUST be referentially stable. */
   activateOn?: (event: ConsoleEvent) => boolean
+  /** Rendered only while every `requires` seam is live; otherwise the panel explains why. */
   render: () => ReactNode
 }
 
@@ -347,7 +349,9 @@ export function PanelRail({ side }: { side: Side }) {
                     ✕
                   </button>
                 </header>
-                <div className="min-h-0 flex-1 overflow-y-auto p-2">{panel.render()}</div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                  <Gated requirement={panel}>{panel.render()}</Gated>
+                </div>
                 <div
                   role="separator"
                   aria-label={`Resize ${panel.title} panel`}
