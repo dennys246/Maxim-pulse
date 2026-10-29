@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import { AuthSession, MemoryTokenStore, WS_APP_SUBPROTOCOL } from './auth'
-import { WsEventSource, type WsLike } from './events'
+import { WsEventSource, browserWakeSource, type WakeSource, type WsLike } from './events'
 import { wireEvent } from './mock'
 import { AuthError, FacadeError, HttpFacade } from './http'
 import type { ConsoleEvent } from './types'
@@ -403,4 +403,163 @@ test('health samples are remembered, never buffered as history', async () => {
   hub.ingest(wireEvent('nac'))
   expect(hub.buffer().map((e) => e.kind)).toEqual(['nac'])
   expect(hub.health?.data).toEqual({ cpu: { usage_pct: 5 } })
+})
+
+/** A wake source the test fires by hand, recording whether anyone is listening. */
+function manualWake() {
+  const state = { fire: null as (() => void) | null, subscriptions: 0 }
+  const source: WakeSource = (wake) => {
+    state.fire = wake
+    state.subscriptions += 1
+    return () => {
+      state.fire = null
+    }
+  }
+  return { state, source }
+}
+
+describe('waking the stream (tab visible again, back online)', () => {
+  test('a pending backoff is skipped: wake reconnects at once', () => {
+    vi.useFakeTimers()
+    try {
+      const { state, source: wakeSource } = manualWake()
+      const source = new WsEventSource({
+        resolveUrl: () => 'ws://t/ws',
+        wsFactory: fakeWsFactory,
+        wakeSource,
+      })
+      source.on('*', () => {})
+      FakeWs.instances[0]!.open()
+      FakeWs.instances[0]!.drop()
+      expect(FakeWs.instances).toHaveLength(1) // waiting out the backoff
+      state.fire!()
+      expect(FakeWs.instances).toHaveLength(2)
+      vi.advanceTimersByTime(10_000)
+      expect(FakeWs.instances).toHaveLength(2) // the cancelled timer never fires a second socket
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('a healthy socket is left alone; one silent past two heartbeats is replaced', () => {
+    let now = 0
+    const { state, source: wakeSource } = manualWake()
+    const source = new WsEventSource({
+      resolveUrl: () => 'ws://t/ws',
+      wsFactory: fakeWsFactory,
+      wakeSource,
+      now: () => now,
+    })
+    source.on('*', () => {})
+    const first = FakeWs.instances[0]!
+    first.open()
+    now = 20_000
+    first.receive(wireEvent('heartbeat', { tier: 'clean' }))
+    now = 40_000
+    state.fire!()
+    expect(FakeWs.instances).toHaveLength(1) // heard from 20 s ago: healthy
+    now = 60_000
+    state.fire!()
+    expect(first.closed).toBe(true) // 40 s of silence: a laptop that slept
+    expect(FakeWs.instances).toHaveLength(2)
+  })
+
+  test('a handshake in flight, or held credentials, are not disturbed', () => {
+    const { state, source: wakeSource } = manualWake()
+    const facade = new HttpFacade({
+      wsFactory: fakeWsFactory,
+      auth: bearerSession(null),
+      wakeSource,
+    })
+    facade.on('*', () => {})
+    expect(FakeWs.instances).toHaveLength(0)
+    state.fire!()
+    expect(FakeWs.instances).toHaveLength(0) // no token: still nothing to offer
+
+    const source = new WsEventSource({
+      resolveUrl: () => 'ws://t/ws',
+      wsFactory: fakeWsFactory,
+      wakeSource,
+    })
+    source.on('*', () => {})
+    state.fire!()
+    expect(FakeWs.instances).toHaveLength(1) // not yet open: let it finish
+  })
+
+  test('the wake source is subscribed while anyone listens, and released after', () => {
+    const { state, source: wakeSource } = manualWake()
+    const source = new WsEventSource({
+      resolveUrl: () => 'ws://t/ws',
+      wsFactory: fakeWsFactory,
+      wakeSource,
+    })
+    const off = source.on('*', () => {})
+    expect(state.fire).not.toBeNull()
+    off()
+    expect(state.fire).toBeNull()
+  })
+})
+
+describe('stream gaps', () => {
+  test('a reconnect after a loss is a gap; the first connection is not', () => {
+    vi.useFakeTimers()
+    try {
+      const source = new WsEventSource({ resolveUrl: () => 'ws://t/ws', wsFactory: fakeWsFactory })
+      let gaps = 0
+      source.onGap(() => (gaps += 1))
+      const off = source.on('*', () => {})
+      FakeWs.instances[0]!.open()
+      expect(gaps).toBe(0)
+      FakeWs.instances[0]!.drop()
+      vi.advanceTimersByTime(500)
+      FakeWs.instances[1]!.open()
+      expect(gaps).toBe(1)
+
+      // the last subscriber leaving ends the stream; a new one starts fresh
+      off()
+      source.on('*', () => {})
+      FakeWs.instances[2]!.open()
+      expect(gaps).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('HttpFacade reports the gap to its consumers', () => {
+    vi.useFakeTimers()
+    try {
+      const facade = new HttpFacade({ wsFactory: fakeWsFactory, auth: bearerSession() })
+      let gaps = 0
+      facade.onStreamGap(() => (gaps += 1))
+      facade.on('*', () => {})
+      FakeWs.instances[0]!.open()
+      FakeWs.instances[0]!.drop()
+      vi.advanceTimersByTime(500)
+      FakeWs.instances[1]!.open()
+      expect(gaps).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+test('the browser wake source fires on becoming visible and on coming back online, not on hiding', () => {
+  let woke = 0
+  const off = browserWakeSource(() => (woke += 1))
+  const visibility = vi.spyOn(document, 'visibilityState', 'get')
+  try {
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(woke).toBe(0)
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(woke).toBe(1)
+    window.dispatchEvent(new Event('online'))
+    expect(woke).toBe(2)
+    off()
+    window.dispatchEvent(new Event('online'))
+    expect(woke).toBe(2)
+  } finally {
+    visibility.mockRestore()
+  }
 })

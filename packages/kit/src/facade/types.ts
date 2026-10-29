@@ -108,4 +108,9 @@ export interface FacadeClient {
   degraded(since?: number): Promise<DegradedResponse>
   /** Subscribe to /ws events by kind ('*' = every event); returns an unsubscribe function. */
   on(kind: string, handler: (event: ConsoleEvent) => void): () => void
+  /**
+   * The stream reconnected after a loss: events sent in between are gone (/ws
+   * replays nothing). Optional — a client with no live stream never gaps.
+   */
+  onStreamGap?(handler: () => void): () => void
 }

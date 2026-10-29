@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FacadeProvider } from '../../facade/context'
 import { EventClientProvider } from '../../facade/eventClient'
@@ -136,4 +136,13 @@ test('the health tab says when the server could not save every record', async ()
   renderWith(<LogsSurface />, facade)
   await userEvent.click(await screen.findByRole('tab', { name: 'Health' }))
   expect(await screen.findByText(/4 health records could not be saved/)).toBeInTheDocument()
+})
+
+test('after a stream gap the run list reloads: a run that finished unseen appears', async () => {
+  const facade = renderWith(<LogsSurface />)
+  const table = await screen.findByRole('table', { name: 'Past runs' })
+  expect(within(table).getAllByRole('row')).toHaveLength(3)
+  facade.runs = [{ ...facade.runs[0]!, session_id: '20260904_090000' }, ...facade.runs]
+  act(() => facade.gap())
+  await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(4))
 })
