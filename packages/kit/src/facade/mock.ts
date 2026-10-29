@@ -292,6 +292,18 @@ export class MockFacade implements FacadeClient {
     this.handlers.get(event.kind)?.forEach((handler) => handler(event))
     this.handlers.get('*')?.forEach((handler) => handler(event))
   }
+
+  private gapHandlers = new Set<() => void>()
+
+  onStreamGap(handler: () => void): () => void {
+    this.gapHandlers.add(handler)
+    return () => this.gapHandlers.delete(handler)
+  }
+
+  /** Test helper: the stream reconnected after a loss, as WsEventSource reports it. */
+  gap(): void {
+    this.gapHandlers.forEach((handler) => handler())
+  }
 }
 
 let wireSeq = 0

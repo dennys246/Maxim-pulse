@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useFacade } from '../../facade/context'
+import { useStreamGaps } from '../../facade/eventClient'
 import { AuthError, FacadeError } from '../../facade/http'
 import type { ActionRecord, RunReport, RunSummary } from '../../facade/types'
 import { CreditChip } from './CreditChip'
@@ -40,9 +41,11 @@ function RunList({ onOpen }: { onOpen: (sessionId: string) => void }) {
     [facade],
   )
 
+  // after a stream gap a run may have started or finished unseen: reload page one
+  const gaps = useStreamGaps()
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, gaps])
 
   const aborted = runs.filter((r) => !r.has_report)
   const shown = showAborted ? runs : runs.filter((r) => r.has_report)

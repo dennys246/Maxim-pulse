@@ -18,6 +18,32 @@ export type WsFactory = (url: string, protocols: string[]) => WsLike
 
 const BACKOFF_BASE_MS = 500
 const BACKOFF_CAP_MS = 8_000
+/**
+ * An open socket silent this long is presumed dead (a laptop that slept leaves
+ * one behind with no close event). pymaxim's /ws sends a heartbeat every 15 s
+ * when idle (`_HEARTBEAT_INTERVAL_S`), so two missed beats plus slack.
+ */
+const STALE_AFTER_MS = 35_000
+
+/**
+ * Something that says "now is a good moment to check the connection": the tab
+ * became visible again, or the network came back. Returns its unsubscribe.
+ */
+export type WakeSource = (wake: () => void) => () => void
+
+/** The browser's wake signals: `visibilitychange` (to visible) and `online`. */
+export const browserWakeSource: WakeSource = (wake) => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {}
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') wake()
+  }
+  document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('online', wake)
+  return () => {
+    document.removeEventListener('visibilitychange', onVisible)
+    window.removeEventListener('online', wake)
+  }
+}
 
 export interface WsEventSourceOptions {
   resolveUrl: () => string
@@ -47,6 +73,10 @@ export interface WsEventSourceOptions {
    * event. A 0.6.0 server reads opt-in kinds as additive.
    */
   optIn?: { kinds: string[]; whenSeamLive: string }
+  /** When to check the connection early. Defaults to the browser's signals. */
+  wakeSource?: WakeSource
+  /** Clock, for tests. */
+  now?: () => number
 }
 
 /** Does this identity frame declare `seam` live? (the envelope's data is the IdentityResponse) */
@@ -95,6 +125,15 @@ export class WsEventSource {
   private resolveProtocols: () => string[] | null
   private onHandshakeRefused?: () => void
   private optIn?: { kinds: string[]; whenSeamLive: string }
+  private wakeSource: WakeSource
+  private now: () => number
+  private unwake: (() => void) | null = null
+  /** The current socket has opened (not merely been created). */
+  private open = false
+  private lastMessageAt = 0
+  /** Some connection opened since subscribers arrived: the next open follows a gap. */
+  private hadOpened = false
+  private gapHandlers = new Set<() => void>()
 
   constructor(options: WsEventSourceOptions) {
     this.resolveUrl = options.resolveUrl
@@ -106,6 +145,31 @@ export class WsEventSource {
     this.resolveProtocols = options.resolveProtocols ?? (() => [])
     this.onHandshakeRefused = options.onHandshakeRefused
     this.optIn = options.optIn
+    this.wakeSource = options.wakeSource ?? browserWakeSource
+    this.now = options.now ?? (() => Date.now())
+  }
+
+  /**
+   * Called when a connection opens after an earlier one was lost. `seq` restarts
+   * per connection and /ws replays nothing, so whatever was sent in between is
+   * gone: refetch what can be refetched (the run list), don't trust a live tally.
+   */
+  onGap(handler: () => void): () => void {
+    this.gapHandlers.add(handler)
+    return () => this.gapHandlers.delete(handler)
+  }
+
+  /**
+   * Check the connection now instead of waiting out the backoff: reconnect at
+   * once if there is no socket, or if the open one has gone silent. A healthy
+   * socket, a handshake in flight, and held credentials are left alone.
+   */
+  wake(): void {
+    if (this.subscriberCount() === 0 || this.held) return
+    if (this.ws != null && !this.open) return // a handshake is in flight
+    if (this.ws != null && this.now() - this.lastMessageAt <= STALE_AFTER_MS) return
+    this.teardown()
+    this.ensureConnected()
   }
 
   on(kind: string, handler: EventHandler): () => void {
@@ -149,6 +213,7 @@ export class WsEventSource {
   }
 
   private ensureConnected(): void {
+    this.unwake ??= this.wakeSource(() => this.wake())
     if (this.ws != null || this.retryTimer != null) return
     this.stopped = false
     this.connect()
@@ -163,16 +228,22 @@ export class WsEventSource {
     this.held = false
     const ws = this.wsFactory(this.resolveUrl(), protocols)
     this.ws = ws
+    this.open = false
     let opened = false
     let optedIn = false
     ws.onopen = () => {
       opened = true
+      this.open = true
+      this.lastMessageAt = this.now()
       this.attempts = 0
       if (this.subscribe != null && ws.send != null) {
         ws.send(JSON.stringify(this.subscribe))
       }
+      if (this.hadOpened) this.gapHandlers.forEach((handler) => handler())
+      this.hadOpened = true
     }
     ws.onmessage = (message) => {
+      this.lastMessageAt = this.now()
       let event: ConsoleEvent
       try {
         event = JSON.parse(String(message.data)) as ConsoleEvent
@@ -193,6 +264,7 @@ export class WsEventSource {
     ws.onerror = null
     ws.onclose = () => {
       this.ws = null
+      this.open = false
       if (this.stopped || this.subscriberCount() === 0) return
       if (!opened) this.onHandshakeRefused?.()
       if (this.held || this.stopped) return // the refusal handler suspended us
@@ -213,6 +285,9 @@ export class WsEventSource {
   private disconnect(): void {
     this.teardown()
     this.held = false
+    this.hadOpened = false // a fresh subscriber starts a fresh stream, not a gap
+    this.unwake?.()
+    this.unwake = null
   }
 
   private teardown(): void {
@@ -222,6 +297,7 @@ export class WsEventSource {
       this.retryTimer = null
     }
     this.attempts = 0
+    this.open = false
     const ws = this.ws
     this.ws = null
     if (ws != null) {

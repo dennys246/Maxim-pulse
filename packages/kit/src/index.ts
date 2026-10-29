@@ -26,6 +26,7 @@ export {
   EventHub,
   useEventClient,
   useEvents,
+  useStreamGaps,
   type EventFilter,
 } from './facade/eventClient'
 export { IdentityProvider, useIdentity } from './facade/identity'

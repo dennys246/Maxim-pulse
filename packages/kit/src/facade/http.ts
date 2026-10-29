@@ -1,5 +1,5 @@
 import { AuthSession } from './auth'
-import { WsEventSource, type WsFactory } from './events'
+import { WsEventSource, type WakeSource, type WsFactory } from './events'
 
 /** The opt-in /ws kinds (contract 0.6.0). Host samples, never run events. */
 export const HEALTH_KINDS = ['health', 'health_stall'] as const
@@ -86,6 +86,8 @@ export interface HttpFacadeOptions {
    * once the connection's identity frame shows the `health` seam live.
    */
   liveHealth?: boolean
+  /** When to check the stream early (tab visible again, back online). Default: the browser's. */
+  wakeSource?: WakeSource
 }
 
 /**
@@ -119,6 +121,7 @@ export class HttpFacade implements FacadeClient {
       resolveProtocols: () => this.auth.wsProtocols(),
       onHandshakeRefused: () => void this.confirmCredentials(),
       optIn: options.liveHealth ? { kinds: [...HEALTH_KINDS], whenSeamLive: 'health' } : undefined,
+      wakeSource: options.wakeSource,
     })
     this.auth.subscribe(() => {
       if (this.auth.canConnect()) this.events.resume()
@@ -276,5 +279,9 @@ export class HttpFacade implements FacadeClient {
 
   on(kind: string, handler: (event: ConsoleEvent) => void): () => void {
     return this.events.on(kind, handler)
+  }
+
+  onStreamGap(handler: () => void): () => void {
+    return this.events.onGap(handler)
   }
 }
