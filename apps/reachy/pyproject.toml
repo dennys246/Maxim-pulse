@@ -15,7 +15,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "maxim-reachy-app"
-version = "0.4.5"
+version = "0.4.6"
 description = "Maxim on Reachy Mini — ReachyMiniApp bootstrap serving the on-device UI bundle over pymaxim's embodied HANDLE."
 requires-python = ">=3.10"
 dependencies = []

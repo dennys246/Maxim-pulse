@@ -299,6 +299,15 @@ class MaximReachyApp(ReachyMiniApp):
         self._build_handle = build_handle
         self._placement_resolvable = placement_resolvable
 
+    def wrapped_run(self, *args: Any, **kwargs: Any) -> None:
+        # The SDK's ReachyMini turns the body to follow the head by default; with
+        # pymaxim's ReachyMiniController in charge of motion that is a second,
+        # unasked-for mover (pymaxim #1499). wrapped_run forwards kwargs to
+        # ReachyMini() (reachy_mini 1.8.3 and 1.13). pymaxim's reset on adopt is
+        # only a backstop for this.
+        kwargs.setdefault("automatic_body_yaw", False)
+        super().wrapped_run(*args, **kwargs)
+
     def run(self, reachy_mini: Any, stop_event: threading.Event) -> None:
         # The robot's speaker player must be started before any audio is pushed, and
         # the head wobbler turned off FIRST, so speech never moves the head, not even
