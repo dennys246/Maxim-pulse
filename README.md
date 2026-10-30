@@ -12,8 +12,9 @@ build targets over a shared UI kit, both thin presentation over
 Project home: **[pymaxim.bio](https://pymaxim.bio)** · Docs:
 **[docs.pymaxim.bio](https://docs.pymaxim.bio)** (start with
 [getting started](https://docs.pymaxim.bio/getting-started/)) · A hosted console is a
-non-goal for now (`pulse.pymaxim.bio` is reserved if that ever changes — the console is
-localhost-only).
+non-goal for now (`pulse.pymaxim.bio` is reserved if that ever changes). The desktop console binds
+loopback only; remote reach is through a TLS proxy and a paired, scoped device. The Reachy app's
+console is reachable on the robot's LAN, behind host/origin allowlists and bearer auth.
 
 ## Layout
 
