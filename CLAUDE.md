@@ -153,7 +153,9 @@ make_device_speak_sink(reachy_mini))` + `pairing_ready=voice.is_ready` into `bui
   (`head=None` counter-rotates) → route motion through pymaxim's `ReachyMiniController`;
   version-match client ↔ daemon after any reflash.
 - **Code-split:** heavy dashboard viz never enters the Reachy on-device bundle.
-- **Localhost-only:** `maxim serve` binds `127.0.0.1`.
+- **Loopback bind; remote reach only through a TLS proxy and a paired, scoped device:** desktop
+  `maxim serve` binds `127.0.0.1`. The Reachy app's device console binds its LAN under A9 (Host/Origin
+  allowlists + bearer; trust boundary = Pollen's dashboard). Hosted stays a non-goal. See AGENTS.md.
 - **Bearer auth is always on (0.4.0):** every `/api/*`, `/docs`, `/openapi.json`, `/ws` 401s without
   the console token; `GET /api/hello` is the ONE tokenless surface (`auth: "none"` = sandbox, no
   login). The kit's `AuthSession` + `AuthGate` own the flow; `HttpFacade` carries the Bearer

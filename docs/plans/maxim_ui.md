@@ -11,7 +11,7 @@
 | **pymaxim** (this repo) | The seams ([reachy_app_maxim_seams.md](reachy_app_maxim_seams.md)) + `maxim serve` backend + FIT measurement | Layer 1 |
 | **maxim-pulse** (new monorepo) | The shared React kit + two build targets (Console shell + Reachy shell) | Layers 2 + 3 |
 
-Decisions locked (see [maxim_console.md](maxim_console.md) for rationale): **monorepo, two build targets** · **React + TypeScript / Vite over FastAPI `maxim serve`** · **localhost-only** (hosted = explicit non-goal) · **Adventure is the flagship** · **one persistent agent across modes** · **push-to-talk** voice. *(The seed [AGENTS.md](../../AGENTS.md)/[CLAUDE.md](../../CLAUDE.md) were reframed to the `maxim-pulse` monorepo — shared React kit + Console + Reachy shells — and now live at this repo's root.)*
+Decisions locked (see [maxim_console.md](maxim_console.md) for rationale): **monorepo, two build targets** · **React + TypeScript / Vite over FastAPI `maxim serve`** · **loopback bind; remote reach only through a TLS proxy and a paired, scoped device** (amended 2026-10-29: it read "localhost-only"; a device console binds its LAN under A9; hosted stays a non-goal; pymaxim [console_tunnel_hardening.md](https://github.com/dennys246/Maxim/blob/main/docs/plans/deferred/console_tunnel_hardening.md), [phone_device.md](https://github.com/dennys246/Maxim/blob/main/docs/plans/deferred/phone_device.md) PD2) · **Adventure is the flagship** · **one persistent agent across modes** · **push-to-talk** voice. *(The seed [AGENTS.md](../../AGENTS.md)/[CLAUDE.md](../../CLAUDE.md) were reframed to the `maxim-pulse` monorepo — shared React kit + Console + Reachy shells — and now live at this repo's root.)*
 
 ---
 

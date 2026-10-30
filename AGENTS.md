@@ -141,8 +141,13 @@ Authority: `docs/embodiment/reachy_mini/` in pymaxim + Pollen's docs. The two th
 - **Code-split by target.** The heavy dashboard viz (react-flow/visx graphs) must **never enter
   the Reachy on-device bundle** — the Pi target imports only SetupWizard/StatusChip/MemoryView/
   RunSurface. Keep the bundle lean so one-click install doesn't time out or fill the SD card.
-- **Localhost-only Console.** `maxim serve` binds **`127.0.0.1`** (it holds keys, can run +
-  configure Maxim). Never `0.0.0.0`. A hosted console is an explicit non-goal.
+- **Loopback bind; remote reach only through a TLS proxy and a paired, scoped device.** Desktop
+  `maxim serve` binds **`127.0.0.1`** (it holds keys, can run + configure Maxim) — never `0.0.0.0`;
+  remote reach to it is a TLS proxy plus a paired, scoped device. A **device console** (the Reachy
+  app) binds its LAN under A9, behind the Host/Origin allowlists (`build_app(extra_trusted_origins=…)`)
+  and bearer auth; its trust boundary is Pollen's dashboard. A hosted console stays an explicit
+  non-goal. (pymaxim [console_tunnel_hardening.md](https://github.com/dennys246/Maxim/blob/main/docs/plans/deferred/console_tunnel_hardening.md) A9,
+  [phone_device.md](https://github.com/dennys246/Maxim/blob/main/docs/plans/deferred/phone_device.md) PD2.)
 - **Tests run offline.** Mock the facade client / `maxim serve` / the Reachy SDK; no test spins
   up a real robot or real LLM. Component tests via vitest against a fake facade.
 - **Two renderers, one event model.** The kit's `EventClient` consumes the same
