@@ -450,6 +450,28 @@ def test_init_runs_the_sdk_base_init() -> None:
     assert RecordingBase.inits == 1
 
 
+def test_wrapped_run_turns_off_the_sdks_automatic_body_yaw() -> None:
+    # The SDK turns the body to follow the head unless told not to; pymaxim's
+    # controller owns motion (pymaxim #1499). wrapped_run forwards kwargs to
+    # ReachyMini(), so the base must receive automatic_body_yaw=False.
+    seen: list[dict[str, Any]] = []
+
+    class RecordingBase:
+        def __init__(self) -> None:
+            pass
+
+        def wrapped_run(self, *args: Any, **kwargs: Any) -> None:
+            seen.append(kwargs)
+
+    import maxim_reachy_app.app as app_mod
+
+    class Probe(app_mod.MaximReachyApp, RecordingBase):
+        pass
+
+    Probe().wrapped_run()
+    assert seen == [{"automatic_body_yaw": False}]
+
+
 #: The config paths pymaxim 1.3.3's schema defines that the bootstrap may read
 #: (resolve_setting raises ConfigurationError for any other path).
 _SCHEMA_PATHS = {"cloud.enabled", "lanes.large.remote_url", "llm.profile", "llm.enabled"}

@@ -173,9 +173,12 @@ def _check_the_daemons_launch_path(bootstrap_config: type) -> None:
         "main.py launches the app the way the daemon runs it (python -m … → wrapped_run)",
     )
 
+    real_handle = sdk_app.ReachyMini
+    opened_with: list[dict] = []
+
     class _FakeHandle:
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            opened_with.append(kwargs)
 
         def __enter__(self) -> FakeReachyMini:
             return FakeReachyMini()
@@ -208,6 +211,12 @@ def _check_the_daemons_launch_path(bootstrap_config: type) -> None:
         up,
         "through wrapped_run, the console comes up",
         app.error.splitlines()[-1] if app.error else "",
+    )
+    check(
+        "automatic_body_yaw" in inspect.signature(real_handle).parameters
+        and [kw.get("automatic_body_yaw") for kw in opened_with] == [False],
+        "the robot is opened with automatic_body_yaw=False (pymaxim #1499)",
+        repr(opened_with),
     )
     app.stop()  # what the daemon's SIGINT ends in
     runner.join(30)
