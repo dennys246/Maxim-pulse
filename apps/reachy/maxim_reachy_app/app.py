@@ -20,7 +20,8 @@ Everything hard lives behind pymaxim facades; this file only sequences them:
 3. **Honor stop_event — the dashboard stop IS the session boundary.**
    ``handle.stop(consolidation="full")`` + server shutdown, in ``finally``.
    This line is load-bearing: if it silently no-ops, the cross-session
-   "remembers you" thesis breaks (AGENTS.md § execution flows).
+   "remembers you" thesis breaks (AGENTS.md § execution flows). The whole
+   stop fits inside Pollen's 20 s kill (``STOP_BUDGET_S``, pulse #67).
 
 Dependencies are injectable so tests run fully offline (no pymaxim, no robot,
 no sockets); the defaults import pymaxim lazily and fail with an install hint.
@@ -28,6 +29,8 @@ no sockets); the defaults import pymaxim lazily and fail with an install hint.
 
 from __future__ import annotations
 
+import inspect
+import logging
 import socket
 import threading
 from collections.abc import Callable
@@ -79,6 +82,55 @@ def _key_file_unusable() -> tuple[type[BaseException], ...]:
     except ImportError:
         return ()
     return (KeyFileUnusable,)
+
+
+logger = logging.getLogger(__name__)
+
+# ── the stop budget (pulse #67) ──────────────────────────────────────────────
+#
+# Pollen's daemon stops an app with SIGINT, then kills its whole process tree
+# 20 s later (reachy_mini 1.8.3 and 1.13 ``AppManager.stop_current_app``,
+# ``timeout=20.0``, no caller overrides it). SIGINT unwinds ``run()``'s
+# ``finally``, so everything there shares ONE budget, spent in order: the
+# embodied agent, then the console server (whose lifespan stops the console's
+# own agent), then the voice provisioner; the reserve is for what runs after
+# (the player stop, ReachyMini's context exit, interpreter exit).
+#
+# Bounding the agent is safe only from pymaxim 1.3.4, which saves every store
+# BEFORE consolidating and consolidates only within the caller's deadline
+# (#1438): a short stop skips replay, never a save. 1.3.3 consolidates first,
+# so on 1.3.3 the agent's stop stays unbounded (detected by feature).
+
+#: Pollen's SIGINT → SIGKILL window.
+DAEMON_KILL_S = 20.0
+#: Kept back for the player stop, ReachyMini's context exit and interpreter exit.
+EXIT_RESERVE_S = 3.0
+#: The whole bootstrap stop, from the moment ``run()``'s ``finally`` starts.
+STOP_BUDGET_S = DAEMON_KILL_S - EXIT_RESERVE_S
+#: uvicorn's wait for open requests before the lifespan shutdown (an int, in s).
+SERVER_GRACE_S = 1
+#: The console lifespan's bounded stop of its own agent (``build_app(stop_budget_s=)``).
+SERVER_STOP_BUDGET_S = 5.0
+#: The server thread's join: grace + lifespan budget + pymaxim's report reserve.
+SERVER_JOIN_S = SERVER_GRACE_S + SERVER_STOP_BUDGET_S + 1.0
+#: The voice provisioner's join (it only downloads/loads the Piper voice).
+VOICE_STOP_S = 1.0
+
+
+def _deadline_type() -> Any | None:
+    """pymaxim's ``Deadline`` (>= 1.3.4, with ``MaximHandle.stop(deadline=)``), else None (1.3.3)."""
+    try:
+        from maxim.utils.deadline import Deadline  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    return Deadline
+
+
+def _accepts(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 class _Server(Protocol):
@@ -159,13 +211,29 @@ class _UvicornThread:
     handoff_url: str | None = None
 
     def __init__(
-        self, app: Any, host: str, port: int, *, on_stop: Callable[[], None] | None = None
+        self,
+        app: Any,
+        host: str,
+        port: int,
+        *,
+        on_stop: Callable[[], None] | None = None,
+        join_s: float = 10.0,
     ) -> None:
         import uvicorn
 
         self._on_stop = on_stop
+        self._join_s = join_s
+        # uvicorn waits for open requests before the lifespan shutdown, with no
+        # limit by default: an in-flight Talk request would hold back the
+        # console's own bounded stop (pymaxim's private _serve does the same).
         self._server = uvicorn.Server(
-            uvicorn.Config(app, host=host, port=port, log_level="warning")
+            uvicorn.Config(
+                app,
+                host=host,
+                port=port,
+                log_level="warning",
+                timeout_graceful_shutdown=SERVER_GRACE_S,
+            )
         )
         self._thread = threading.Thread(
             target=self._server.run, daemon=True, name="maxim-reachy-ui"
@@ -175,7 +243,7 @@ class _UvicornThread:
     def stop(self) -> None:
         try:
             self._server.should_exit = True
-            self._thread.join(timeout=10)
+            self._thread.join(timeout=self._join_s)
         finally:
             if self._on_stop is not None:
                 self._on_stop()
@@ -223,6 +291,10 @@ def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
     voice = VoiceProvisioner()
     announcer = make_pairing_announcer(voice.engine, make_device_speak_sink(reachy_mini))
     ui_dist = config.ui_dist if config.ui_dist.is_dir() else None
+    # pymaxim >= 1.3.4: the console lifespan's stop fits its share of the budget.
+    bounded = (
+        {"stop_budget_s": SERVER_STOP_BUDGET_S} if _accepts(build_app, "stop_budget_s") else {}
+    )
     app = build_app(
         ui_dist,
         ui_source="packaged",
@@ -233,8 +305,16 @@ def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
         #    (contract 0.6.0) — `maxim serve` does this by default; build_app
         #    does not.
         health_monitor=True,
+        **bounded,
     )
-    server = _UvicornThread(app, config.host, config.port, on_stop=voice.stop)
+    server = _UvicornThread(
+        app,
+        config.host,
+        config.port,
+        on_stop=lambda: voice.stop(timeout_s=VOICE_STOP_S),
+        # 1.3.3's lifespan drain is unbounded: keep its old 10 s join there.
+        join_s=SERVER_JOIN_S if bounded else 10.0,
+    )
     voice.start()  # only once the app exists: a failed build leaves no thread behind
     server.handoff_url = handoff.url
     return server
@@ -383,10 +463,32 @@ class MaximReachyApp(ReachyMiniApp):
             # dashboard start after setup builds the agent.
             stop_event.wait()
         finally:
+            # The clock starts here: SIGINT is what unwinds the wait above.
+            deadline_type = _deadline_type()
+            stop_by = deadline_type.after(STOP_BUDGET_S) if deadline_type is not None else None
             try:
                 if handle is not None:
                     # THE session boundary. Full consolidation, never inferred
                     # from a proxy flag (HANDLE stop contract, pymaxim #427).
-                    handle.stop(consolidation="full")
+                    self._stop_agent(handle, stop_by)
             finally:
                 server.stop()
+
+    @staticmethod
+    def _stop_agent(handle: Any, stop_by: Any | None) -> None:
+        if stop_by is None:  # pymaxim 1.3.3: no deadline, and it consolidates before saving
+            handle.stop(consolidation="full")
+            return
+        # Everything after the agent keeps its share; the agent gets the rest.
+        finished = handle.stop(
+            consolidation="full",
+            deadline=stop_by.ending_early(SERVER_JOIN_S + VOICE_STOP_S),
+        )
+        if finished is False:
+            # Stores are saved first (pymaxim #1438), so this cost consolidation
+            # steps only; pymaxim's session end names the ones it skipped.
+            logger.warning(
+                "the agent's stop did not finish within its %.0f s share of Pollen's %.0f s stop",
+                max(0.0, STOP_BUDGET_S - SERVER_JOIN_S - VOICE_STOP_S),
+                DAEMON_KILL_S,
+            )

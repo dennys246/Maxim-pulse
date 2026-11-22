@@ -19,7 +19,10 @@ Checks, in order (each prints PASS/FAIL; any FAIL exits 1):
   3. /api/health reports the server is sampling (health_monitor wired)
   4. a pairing request makes the robot's speaker receive real audio:
      float32 (the SDK's format), finite, at least ~1 s long, not silent
-  5. stopping the server returns promptly
+  5. the dashboard stop (the REAL embodied agent, built by the app's own
+     default deps with no LLM call) finishes inside the stop budget the app
+     keeps under Pollen's 20 s kill (pulse #67), and the session end persisted
+     the agent's stores under the temp home
 
 Never prints the console token or the spoken code (A7).
 """
@@ -305,8 +308,11 @@ def main() -> int:
         ui_dist=ui_dist,
     )
     # Through the app's own run(): starting the robot's player (and everything
-    # else run() owns) is the app's job, never this harness's.
-    app = MaximReachyApp(config)
+    # else run() owns) is the app's job, never this harness's. The placement
+    # check is the only dep replaced: the app's own _default_build_handle then
+    # builds the REAL MaximHandle (no LLM call until a run), so the stop below
+    # is the real session end, not a setup-only server stop.
+    app = MaximReachyApp(config, placement_resolvable=lambda: True)
     stop_event = threading.Event()
     runner = threading.Thread(target=app.run, args=(robot, stop_event), daemon=True)
     runner.start()
@@ -384,14 +390,25 @@ def main() -> int:
             )
     finally:
         # 5. a clean stop (the dashboard stop is the session boundary)
+        from maxim_reachy_app import app as app_module
+
+        budget = getattr(app_module, "STOP_BUDGET_S", 15.0)
         t = time.monotonic()
         stop_event.set()
         runner.join(30)
+        elapsed = time.monotonic() - t
         check(not robot.media.playing, "the app stops the robot's audio player on exit")
         check(
-            time.monotonic() - t < 15,
-            "the server stops promptly",
-            f"{time.monotonic() - t:.1f}s",
+            not runner.is_alive() and elapsed < budget,
+            f"the agent and server stop inside the {budget:.0f} s budget (Pollen kills at 20 s)",
+            f"{elapsed:.1f}s",
+        )
+        agent_home = Path.home() / ".maxim" / "agents" / config.agent_id
+        check(
+            (agent_home / "hippocampus.json").is_file()
+            and (agent_home / "nac.json").is_file(),
+            "the session end persisted the agent's stores",
+            str(sorted(p.name for p in agent_home.glob("*.json"))),
         )
 
     if args.installed:

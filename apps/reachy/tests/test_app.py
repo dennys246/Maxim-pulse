@@ -14,6 +14,7 @@ import logging
 import re
 import sys
 import threading
+import time
 import types
 from pathlib import Path
 from typing import Any
@@ -22,8 +23,15 @@ import pytest
 
 from maxim_reachy_app import MaximReachyApp
 from maxim_reachy_app.app import (
+    DAEMON_KILL_S,
+    EXIT_RESERVE_S,
     LEGACY_MDNS_HOST,
     MDNS_HOST,
+    SERVER_GRACE_S,
+    SERVER_JOIN_S,
+    SERVER_STOP_BUDGET_S,
+    STOP_BUDGET_S,
+    VOICE_STOP_S,
     BootstrapConfig,
     ConsoleTokenUnusableError,
     MaximNotInstalledError,
@@ -45,11 +53,43 @@ class FakeServer:
 
 
 class FakeHandle:
-    def __init__(self) -> None:
+    def __init__(self, finished: bool | None = None) -> None:
         self.stop_calls: list[dict] = []
+        self.finished = finished
 
-    def stop(self, *, consolidation: str) -> None:
-        self.stop_calls.append({"consolidation": consolidation})
+    def stop(self, *, consolidation: str, deadline: Any = None) -> bool | None:
+        call: dict = {"consolidation": consolidation}
+        if deadline is not None:  # pymaxim >= 1.3.4 only
+            call["deadline"] = deadline
+        self.stop_calls.append(call)
+        return self.finished
+
+
+class FakeDeadline:
+    """pymaxim 1.3.4's ``maxim.utils.deadline.Deadline``: a monotonic instant."""
+
+    def __init__(self, at: float) -> None:
+        self.at = at
+
+    @classmethod
+    def after(cls, seconds: float) -> "FakeDeadline":
+        return cls(time.monotonic() + max(0.0, seconds))
+
+    def remaining(self) -> float:
+        return max(0.0, self.at - time.monotonic())
+
+    def ending_early(self, seconds: float) -> "FakeDeadline":
+        return FakeDeadline(max(time.monotonic(), self.at - max(0.0, seconds)))
+
+
+def install_fake_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """pymaxim >= 1.3.4 is installed: ``maxim.utils.deadline`` imports."""
+    mod = types.ModuleType("maxim.utils.deadline")
+    mod.Deadline = FakeDeadline  # type: ignore[attr-defined]
+    for name in ("maxim", "maxim.utils"):
+        if name not in sys.modules:
+            monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, "maxim.utils.deadline", mod)
 
 
 def make_app(
@@ -86,6 +126,52 @@ def test_stop_event_triggers_full_consolidation_and_server_stop() -> None:
     assert server.stopped
 
 
+# ── the stop budget (pulse #67): all of it inside Pollen's 20 s kill ─────────
+
+
+def test_the_stop_budget_adds_up_to_pollens_kill() -> None:
+    agent = STOP_BUDGET_S - SERVER_JOIN_S - VOICE_STOP_S
+    assert DAEMON_KILL_S == 20.0  # reachy_mini 1.8.3 + 1.13 stop_current_app(timeout=20.0)
+    assert agent + SERVER_JOIN_S + VOICE_STOP_S + EXIT_RESERVE_S == DAEMON_KILL_S
+    assert agent >= 8.0  # the embodied agent keeps the largest share
+    assert (
+        SERVER_JOIN_S > SERVER_GRACE_S + SERVER_STOP_BUDGET_S
+    )  # the lifespan returns before the join
+
+
+def test_on_pymaxim_1_3_4_the_agents_stop_ends_before_the_server_and_voice_shares(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_deadline(monkeypatch)
+    app, server, handle = make_app(resolvable=True)
+    started = time.monotonic()
+    run_to_completion(app)
+    [call] = handle.stop_calls
+    assert call["consolidation"] == "full"  # still the session boundary, still FULL
+    agent_share = STOP_BUDGET_S - SERVER_JOIN_S - VOICE_STOP_S
+    assert started + agent_share - 0.5 <= call["deadline"].at <= started + agent_share + 0.5
+    assert server.stopped
+
+
+def test_an_agent_stop_that_overran_its_share_is_logged_and_the_server_still_stops(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    install_fake_deadline(monkeypatch)
+    app, server, _ = make_app(resolvable=True, handle=FakeHandle(finished=False))
+    with caplog.at_level(logging.WARNING, logger="maxim_reachy_app.app"):
+        run_to_completion(app)
+    assert "did not finish within its 9 s share of Pollen's 20 s stop" in caplog.text
+    assert server.stopped
+
+
+def test_on_pymaxim_1_3_3_the_agents_stop_stays_unbounded() -> None:
+    # No maxim.utils.deadline: 1.3.3 consolidates BEFORE saving, so a bound
+    # could skip saves. The call is exactly the old one.
+    app, _, handle = make_app(resolvable=True)
+    run_to_completion(app)
+    assert handle.stop_calls == [{"consolidation": "full"}]
+
+
 def test_unresolvable_config_serves_setup_only_and_builds_no_agent() -> None:
     app, server, handle = make_app(resolvable=False)
     run_to_completion(app)
@@ -95,7 +181,7 @@ def test_unresolvable_config_serves_setup_only_and_builds_no_agent() -> None:
 
 def test_server_stops_even_if_handle_stop_raises() -> None:
     class ExplodingHandle(FakeHandle):
-        def stop(self, *, consolidation: str) -> None:
+        def stop(self, *, consolidation: str, deadline: Any = None) -> bool | None:
             raise RuntimeError("consolidation crashed")
 
     server = FakeServer()
@@ -162,6 +248,7 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
         pairing_announcer=None,
         pairing_ready=None,
         health_monitor=False,
+        stop_budget_s=None,  # pymaxim >= 1.3.4
     ):
         calls["build_app"].append(
             {
@@ -171,6 +258,7 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
                 "pairing_announcer": pairing_announcer,
                 "pairing_ready": pairing_ready,
                 "health_monitor": health_monitor,
+                "stop_budget_s": stop_budget_s,
             }
         )
         if calls.get("build_app_raises"):
@@ -199,6 +287,7 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
 
         def stop(self, timeout_s: float = 5.0) -> None:
             calls["voice"].append("stop")
+            calls["voice_stop_timeout"] = timeout_s
 
     def make_device_speak_sink(mini):
         def speak(samples, *, sample_rate):  # the real sink: keyword-only, required (pymaxim #1435)
@@ -235,14 +324,15 @@ def install_fake_pymaxim(monkeypatch: pytest.MonkeyPatch) -> dict:
     class FakeUvicornServer:
         def __init__(self, config) -> None:
             calls["uvicorn"].append({"host": config.host, "port": config.port})
+            calls["graceful"] = getattr(config, "timeout_graceful_shutdown", None)
             self.should_exit = False
 
         def run(self) -> None:
             pass
 
     uvicorn = types.ModuleType("uvicorn")
-    uvicorn.Config = lambda app, host, port, log_level: types.SimpleNamespace(  # type: ignore
-        host=host, port=port
+    uvicorn.Config = lambda app, host, port, log_level, **kw: types.SimpleNamespace(  # type: ignore
+        host=host, port=port, **kw
     )
     uvicorn.Server = FakeUvicornServer  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
@@ -265,6 +355,7 @@ def test_default_serve_mints_the_token_first_and_admits_every_advertised_host(
             "pairing_announcer": calls["build_app"][0]["pairing_announcer"],
             "pairing_ready": calls["build_app"][0]["pairing_ready"],
             "health_monitor": True,  # the robot samples health (contract 0.6.0)
+            "stop_budget_s": SERVER_STOP_BUDGET_S,  # pulse #67: its share of the 20 s
         }
     ]
     assert callable(calls["build_app"][0]["pairing_announcer"])
@@ -445,6 +536,52 @@ def test_stopping_the_server_stops_the_voice_provisioner(
     )
     server.stop()
     assert calls["voice"] == ["init", "start", "stop"]
+
+
+def test_the_server_and_voice_stops_fit_their_shares(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_pymaxim(monkeypatch)
+    server = _default_serve(
+        BootstrapConfig(advertised_hosts=(MDNS_HOST,), ui_dist=tmp_path), FakeReachyMini()
+    )
+    assert calls["graceful"] == SERVER_GRACE_S  # open requests can't hold the lifespan back
+    assert server._join_s == SERVER_JOIN_S  # type: ignore[attr-defined]
+    server.stop()
+    assert calls["voice_stop_timeout"] == VOICE_STOP_S
+
+
+def test_on_pymaxim_1_3_3_build_app_gets_no_stop_budget_and_the_join_stays_10_s(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_pymaxim(monkeypatch)
+    server_mod = sys.modules["maxim.console.server"]
+    newer = server_mod.build_app  # type: ignore[attr-defined]
+
+    def build_app_133(
+        ui_dist,
+        ui_source="none",
+        *,
+        extra_trusted_origins=(),
+        pairing_announcer=None,
+        pairing_ready=None,
+        health_monitor=False,
+    ):
+        return newer(
+            ui_dist,
+            ui_source,
+            extra_trusted_origins=extra_trusted_origins,
+            pairing_announcer=pairing_announcer,
+            pairing_ready=pairing_ready,
+            health_monitor=health_monitor,
+        )
+
+    server_mod.build_app = build_app_133  # type: ignore[attr-defined]
+    server = _default_serve(
+        BootstrapConfig(advertised_hosts=(MDNS_HOST,), ui_dist=tmp_path), FakeReachyMini()
+    )
+    assert calls["build_app"][0]["stop_budget_s"] is None  # never passed to 1.3.3
+    assert server._join_s == 10.0  # type: ignore[attr-defined]
 
 
 def test_a_refused_build_leaves_no_provisioner_thread_behind(
