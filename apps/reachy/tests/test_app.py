@@ -25,6 +25,7 @@ from maxim_reachy_app.app import (
     LEGACY_MDNS_HOST,
     MDNS_HOST,
     BootstrapConfig,
+    ConsoleTokenUnusableError,
     MaximNotInstalledError,
     _default_serve,
     advertised_hosts,
@@ -270,6 +271,54 @@ def test_default_serve_mints_the_token_first_and_admits_every_advertised_host(
     assert calls["uvicorn"] == [{"host": "0.0.0.0", "port": 8765}]
     assert server.handoff_url == f"http://{MDNS_HOST}:8765/#token={TOKEN}"
     server.stop()
+
+
+class FakeKeyFileUnusable(RuntimeError):
+    """pymaxim 1.3.4's ``maxim.exceptions.KeyFileUnusable`` (#1402): path, reason, fix_hint."""
+
+    def __init__(self, *, path: Path, reason: str, fix_hint: str) -> None:
+        self.path, self.reason, self.fix_hint = path, reason, fix_hint
+        super().__init__(f"key file unusable ({reason}): {path}")
+
+
+def test_an_unusable_token_file_is_presented_and_nothing_is_served(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_pymaxim(monkeypatch)
+    exceptions_mod = types.ModuleType("maxim.exceptions")
+    exceptions_mod.KeyFileUnusable = FakeKeyFileUnusable  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "maxim.exceptions", exceptions_mod)
+    token_file = tmp_path / "console_token"
+
+    def device_console_handoff(host: str, port: int = 8765) -> FakeHandoff:
+        raise FakeKeyFileUnusable(
+            path=token_file, reason="unreadable", fix_hint=f"chmod 600 {token_file}."
+        )
+
+    sys.modules["maxim.console.server"].device_console_handoff = device_console_handoff  # type: ignore[attr-defined]
+    app = MaximReachyApp()
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(ConsoleTokenUnusableError) as raised:
+        app.run(FakeReachyMini(), stop)
+    message = str(raised.value)
+    assert "unusable (unreadable)" in message and str(token_file) in message
+    assert f"chmod 600 {token_file}. Then restart the app." in message
+    assert isinstance(raised.value.__cause__, FakeKeyFileUnusable)
+    assert calls["build_app"] == [] and calls["uvicorn"] == [] and calls["voice"] == []
+
+
+def test_on_pymaxim_1_3_3_a_handoff_error_is_not_mistaken_for_an_unusable_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    install_fake_pymaxim(monkeypatch)  # no maxim.exceptions: 1.3.3 has no KeyFileUnusable
+
+    def device_console_handoff(host: str, port: int = 8765) -> FakeHandoff:
+        raise ValueError("not a connectable port")
+
+    sys.modules["maxim.console.server"].device_console_handoff = device_console_handoff  # type: ignore[attr-defined]
+    with pytest.raises(ValueError, match="connectable"):
+        _default_serve(BootstrapConfig(ui_dist=tmp_path), FakeReachyMini())
 
 
 def test_run_sets_the_signed_in_link_on_the_instance_without_logging_it(

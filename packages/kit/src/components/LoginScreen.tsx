@@ -159,6 +159,10 @@ const PACED_RETRY_MS = 1700
  * so the panel returns to idle and the "say a code" button comes back —
  * a claim box the server can no longer satisfy is a dead end.
  *
+ * A 503 (pymaxim >= 1.3.4, #1402) means the code was RIGHT but the device's
+ * console token file is unusable. The code is consumed either way, so it is the
+ * same dead end: show the server's reason (it names the fix) and offer a new
+ * code. Never retried — the same claim can only 410 now.
  */
 function PairingPanel({ onToken }: { onToken: (token: string) => void }) {
   const facade = useFacade()
@@ -207,10 +211,18 @@ function PairingPanel({ onToken }: { onToken: (token: string) => void }) {
         await new Promise((resolve) => setTimeout(resolve, PACED_RETRY_MS))
         return exchange(digits, false)
       }
-      const gone = error instanceof FacadeError && (error.status === 410 || error.status === 409)
+      const status = error instanceof FacadeError ? error.status : null
+      const gone = status === 410 || status === 409 || status === 503
       setPhase(gone ? 'idle' : 'listening')
       if (gone) setNote(null)
-      setProblem(describe(error, 'That code was not accepted.'))
+      setProblem(
+        describe(
+          error,
+          status === 503
+            ? 'The device could not issue a sign-in token. Fix it on the device, then ask the robot for a new code.'
+            : 'That code was not accepted.',
+        ),
+      )
     }
   }
 

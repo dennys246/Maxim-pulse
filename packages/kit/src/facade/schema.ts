@@ -1400,6 +1400,17 @@ export interface operations {
                     };
                 };
             };
+            /** @description The device's console token file is unusable (the code is consumed; fix, then re-request). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail?: string;
+                    };
+                };
+            };
         };
     };
     post_pair_request_api_pair_request_post: {
