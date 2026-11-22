@@ -228,6 +228,36 @@ test('a dead code (410) drops back to asking — a claim box the server cannot s
   expect(screen.queryByLabelText('Spoken code')).not.toBeInTheDocument()
 })
 
+test.each([
+  [
+    'the server\u2019s reason',
+    'The console token file on this device is unusable (unreadable); fix it on the device, then ask the robot for a new code.',
+    /token file on this device is unusable \(unreadable\); fix it on the device, then ask the robot for a new code/,
+  ],
+  [
+    'a re-request hint when the body has no detail',
+    '',
+    /Fix it on the device, then ask the robot for a new code/,
+  ],
+])(
+  'a 503 (unusable token file, pymaxim #1402) consumed the code: shows %s, offers a new code, never re-claims',
+  async (_label, detail, shown) => {
+    const facade = pairingFacade()
+    const claim = vi.fn().mockRejectedValue(new FacadeError(503, detail, '/api/pair/claim'))
+    facade.pairClaim = claim
+    renderGate(facade, new AuthSession({ store: new MemoryTokenStore() }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Have the robot say a code' }))
+    await userEvent.type(await screen.findByLabelText('Spoken code'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with this code' }))
+
+    expect(await screen.findByText(shown)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Have the robot say a code' })).toBeEnabled()
+    expect(screen.queryByLabelText('Spoken code')).not.toBeInTheDocument() // the code is gone
+    expect(claim).toHaveBeenCalledTimes(1) // no automatic retry of a consumed code
+    expect(screen.queryByText('the shell')).not.toBeInTheDocument()
+  },
+)
+
 test('a 429 on the announce (a LAN prankster, or an impatient owner) keeps the ask button', async () => {
   const facade = pairingFacade()
   facade.pairRequest = vi

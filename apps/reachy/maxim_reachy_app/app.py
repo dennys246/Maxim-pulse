@@ -51,6 +51,36 @@ class MaximNotInstalledError(RuntimeError):
         )
 
 
+class ConsoleTokenUnusableError(RuntimeError):
+    """The device's console token file exists but cannot be used (pymaxim >= 1.3.4, #1402).
+
+    pymaxim refuses to overwrite it (that would silently log out every signed-in
+    browser), so the console cannot start. This names what pymaxim found and how
+    to fix it, in the daemon's app log, instead of a bare traceback. The token
+    itself is never read, so it can never be in this message.
+    """
+
+    def __init__(self, error: Exception) -> None:
+        reason = getattr(error, "reason", None) or str(error)
+        path = getattr(error, "path", None)
+        fix_hint = getattr(error, "fix_hint", None)
+        message = f"the robot's console token file is unusable ({reason})"
+        if path is not None:
+            message += f": {path}"
+        message += ". The console cannot start until it is fixed"
+        message += f" — {str(fix_hint).rstrip('.')}" if fix_hint else ""
+        super().__init__(message + ". Then restart the app.")
+
+
+def _key_file_unusable() -> tuple[type[BaseException], ...]:
+    """pymaxim's ``KeyFileUnusable``, or nothing to catch on 1.3.3 (which never raises it)."""
+    try:
+        from maxim.exceptions import KeyFileUnusable  # type: ignore[import-not-found]
+    except ImportError:
+        return ()
+    return (KeyFileUnusable,)
+
+
 class _Server(Protocol):
     def stop(self) -> None: ...
 
@@ -169,7 +199,12 @@ def _default_serve(config: BootstrapConfig, reachy_mini: Any) -> _Server:
     hosts = advertised_hosts(config)
     # 1. Mint/reuse ~/.config/maxim/console_token BEFORE the first request
     #    (build_app reads it from disk per request; --rotate-token still bites).
-    handoff = device_console_handoff(host=hosts[0], port=config.port)
+    #    pymaxim >= 1.3.4 refuses a token file it cannot read rather than
+    #    overwrite it (#1402); present that here, it is the owner's to fix.
+    try:
+        handoff = device_console_handoff(host=hosts[0], port=config.port)
+    except _key_file_unusable() as error:
+        raise ConsoleTokenUnusableError(error) from error
     # 2. Every name the LAN page is reached by must pass the Host/Origin guard.
     #    console.sandbox must be OFF on-device: build_app refuses the
     #    sandbox × extra_trusted_origins combination at build time (auth off).
